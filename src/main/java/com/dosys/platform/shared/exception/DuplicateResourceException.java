@@ -1,0 +1,7 @@
+package com.dosys.platform.shared.exception;
+
+public class DuplicateResourceException extends RuntimeException {
+    public DuplicateResourceException(String message) {
+        super(message);
+    }
+}
