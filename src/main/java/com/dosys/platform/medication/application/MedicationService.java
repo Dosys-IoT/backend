@@ -18,9 +18,9 @@ import com.dosys.platform.medication.interfaces.rest.dto.request.UpsertScheduleR
 import com.dosys.platform.medication.interfaces.rest.dto.response.AdherenceCalendarResponse;
 import com.dosys.platform.medication.interfaces.rest.dto.response.ContainerResponse;
 import com.dosys.platform.medication.interfaces.rest.dto.response.DeviceResponse;
+import com.dosys.platform.medication.interfaces.rest.dto.response.EdgeCredentialsResponse;
 import com.dosys.platform.medication.interfaces.rest.dto.response.EnvironmentReadingResponse;
 import com.dosys.platform.medication.interfaces.rest.dto.response.ScheduleResponse;
-import com.dosys.platform.shared.exception.DuplicateResourceException;
 import com.dosys.platform.shared.exception.ResourceNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -67,13 +67,10 @@ public class MedicationService {
     @Transactional
     public DeviceResponse createDevice(String userEmail, CreateDeviceRequest request) {
         User owner = getUserByEmail(userEmail);
-        if (deviceRepository.existsByOwner(owner)) {
-            throw new DuplicateResourceException("User already has a device");
-        }
 
         Device device = new Device();
         device.setOwner(owner);
-        device.setName(request.name().trim());
+        device.setName(resolveDeviceName(request.name()));
         device.setConfigVersion(1);
         device.setHumidityThreshold(DEFAULT_HUMIDITY_THRESHOLD);
         device.setTemperatureThreshold(DEFAULT_TEMPERATURE_THRESHOLD);
@@ -94,6 +91,14 @@ public class MedicationService {
         containerRepository.saveAll(containers);
 
         return toDeviceResponse(savedDevice);
+    }
+
+    @Transactional(readOnly = true)
+    public List<DeviceResponse> getDevices(String userEmail) {
+        User owner = getUserByEmail(userEmail);
+        return deviceRepository.findByOwnerIdOrderByCreatedAtAsc(owner.getId()).stream()
+                .map(this::toDeviceResponse)
+                .toList();
     }
 
     @Transactional(readOnly = true)
@@ -244,6 +249,12 @@ public class MedicationService {
                 .stream().map(this::toEnvironmentResponse).toList();
     }
 
+    @Transactional(readOnly = true)
+    public EdgeCredentialsResponse getEdgeCredentials(String userEmail, Long deviceId) {
+        Device device = getOwnedDevice(userEmail, deviceId);
+        return new EdgeCredentialsResponse(device.getId(), device.getDeviceKey());
+    }
+
     private MedicationContainer getEnabledContainer(Long deviceId, Integer containerNumber) {
         validateContainerNumber(containerNumber);
         MedicationContainer container = containerRepository.findByDeviceIdAndContainerNumber(deviceId, containerNumber)
@@ -281,8 +292,16 @@ public class MedicationService {
     }
 
     private DeviceResponse toDeviceResponse(Device device) {
-        return new DeviceResponse(device.getId(), device.getName(), device.getConfigVersion(), device.getHumidityThreshold(),
-                device.getTemperatureThreshold(), device.getCreatedAt(), device.getUpdatedAt());
+        return new DeviceResponse(device.getId(), device.getDeviceKey(), device.getName(), device.getConfigVersion(), device.getHumidityThreshold(),
+                device.getTemperatureThreshold(), device.getLastSeenAt(), device.getCreatedAt(), device.getUpdatedAt());
+    }
+
+    private String resolveDeviceName(String rawName) {
+        String normalized = normalize(rawName);
+        if (normalized != null) {
+            return normalized;
+        }
+        return "Dosys Device " + System.currentTimeMillis();
     }
 
     private ContainerResponse toContainerResponse(MedicationContainer container) {

@@ -27,6 +27,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 class DeviceInternalIntegrationTest {
+    private static final String EDGE_SERVICE_KEY = "dosys-local-edge-service-key-change-me-2026";
 
     @Autowired
     private MockMvc mockMvc;
@@ -120,6 +121,14 @@ class DeviceInternalIntegrationTest {
     }
 
     @Test
+    void runtimeConfigWithValidEdgeServiceKey() throws Exception {
+        mockMvc.perform(get("/api/v1/device/internal/{deviceId}/runtime-config", deviceId)
+                        .header("X-Edge-Service-Key", EDGE_SERVICE_KEY))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.deviceId").value(deviceId));
+    }
+
+    @Test
     void runtimeConfigWithoutDeviceKey() throws Exception {
         mockMvc.perform(get("/api/v1/device/internal/{deviceId}/runtime-config", deviceId))
                 .andExpect(status().isUnauthorized())
@@ -127,13 +136,29 @@ class DeviceInternalIntegrationTest {
     }
 
     @Test
+    void runtimeConfigWithIncorrectDeviceKey() throws Exception {
+        mockMvc.perform(get("/api/v1/device/internal/{deviceId}/runtime-config", deviceId)
+                        .header("X-Device-Key", "wrong-key"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+    }
+
+    @Test
+    void runtimeConfigWithIncorrectEdgeServiceKey() throws Exception {
+        mockMvc.perform(get("/api/v1/device/internal/{deviceId}/runtime-config", deviceId)
+                        .header("X-Edge-Service-Key", "wrong-service-key"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+    }
+
+    @Test
     void ingestValidIntakeEvent() throws Exception {
         mockMvc.perform(post("/api/v1/device/internal/{deviceId}/intake-events", deviceId)
-                        .header("X-Device-Key", deviceKey)
+                        .header("X-Edge-Service-Key", EDGE_SERVICE_KEY)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "scheduleId": %d,
+                                  "scheduleId": "%d",
                                   "containerNumber": 1,
                                   "scheduledAt": "2026-05-04T08:00:00Z",
                                   "confirmedAt": "2026-05-04T08:01:00Z",
@@ -193,9 +218,26 @@ class DeviceInternalIntegrationTest {
     }
 
     @Test
+    void rejectIntakeWithInvalidScheduleId() throws Exception {
+        mockMvc.perform(post("/api/v1/device/internal/{deviceId}/intake-events", deviceId)
+                        .header("X-Device-Key", deviceKey)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "scheduleId": 999999,
+                                  "containerNumber": 1,
+                                  "scheduledAt": "2026-05-04T08:00:00Z",
+                                  "confirmedAt": "2026-05-04T08:01:00Z",
+                                  "status": "TAKEN"
+                                }
+                                """))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
     void ingestEnvironmentReadingAndCalculateRisk() throws Exception {
         mockMvc.perform(post("/api/v1/device/internal/{deviceId}/environment-readings", deviceId)
-                        .header("X-Device-Key", deviceKey)
+                        .header("X-Edge-Service-Key", EDGE_SERVICE_KEY)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -209,13 +251,13 @@ class DeviceInternalIntegrationTest {
         mockMvc.perform(get("/api/v1/medication/devices/{deviceId}/environment/latest", deviceId)
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.riskStatus").value("CRITICAL"));
+                .andExpect(jsonPath("$.riskStatus").value("RISK"));
     }
 
     @Test
     void updateStock() throws Exception {
         mockMvc.perform(post("/api/v1/device/internal/{deviceId}/stock-events", deviceId)
-                        .header("X-Device-Key", deviceKey)
+                        .header("X-Edge-Service-Key", EDGE_SERVICE_KEY)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -251,7 +293,7 @@ class DeviceInternalIntegrationTest {
     void registerHeartbeat() throws Exception {
         String now = OffsetDateTime.now(ZoneOffset.UTC).toString();
         mockMvc.perform(post("/api/v1/device/internal/{deviceId}/heartbeats", deviceId)
-                        .header("X-Device-Key", deviceKey)
+                        .header("X-Edge-Service-Key", EDGE_SERVICE_KEY)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {

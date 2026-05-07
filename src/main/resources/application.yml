@@ -4,7 +4,7 @@ spring:
   datasource:
     url: jdbc:postgresql://aws-1-us-east-2.pooler.supabase.com:5432/postgres?sslmode=require
     username: postgres.fbqkqtgkbnlbfwwmkiie
-    password: SUPABASEPASSWORD123
+    password: PASSWORD
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
@@ -25,3 +25,5 @@ app:
   jwt:
     secret: DOSYS_DEV_SECRET_CHANGE_THIS_TO_A_LONG_SECURE_SECRET_123456
     expiration: 86400000
+  edge:
+    service-key: ${EDGE_SERVICE_KEY:dosys-local-edge-service-key-change-me-2026}

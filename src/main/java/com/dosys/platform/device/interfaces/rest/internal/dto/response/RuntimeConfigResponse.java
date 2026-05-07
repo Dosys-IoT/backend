@@ -16,6 +16,11 @@ public record RuntimeConfigResponse(
         List<RuntimeContainer> containers,
         List<RuntimeSchedule> activeSchedules
 ) {
-    public record RuntimeContainer(Integer containerNumber, String medicationName, String dosageLabel, Integer remainingPills) {}
+    public record RuntimeContainer(Integer containerNumber,
+                                   String medicationName,
+                                   String dosageLabel,
+                                   Integer remainingPills,
+                                   Boolean isEnabled) {}
+
     public record RuntimeSchedule(Long scheduleId, Integer containerNumber, LocalTime time, Set<DayOfWeek> daysOfWeek) {}
 }

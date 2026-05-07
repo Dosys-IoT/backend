@@ -7,6 +7,7 @@ import com.dosys.platform.medication.interfaces.rest.dto.request.UpsertScheduleR
 import com.dosys.platform.medication.interfaces.rest.dto.response.AdherenceCalendarResponse;
 import com.dosys.platform.medication.interfaces.rest.dto.response.ContainerResponse;
 import com.dosys.platform.medication.interfaces.rest.dto.response.DeviceResponse;
+import com.dosys.platform.medication.interfaces.rest.dto.response.EdgeCredentialsResponse;
 import com.dosys.platform.medication.interfaces.rest.dto.response.EnvironmentReadingResponse;
 import com.dosys.platform.medication.interfaces.rest.dto.response.ScheduleResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -42,9 +43,15 @@ public class MedicationController {
 
     @PostMapping("/devices")
     @ResponseStatus(HttpStatus.CREATED)
-    @Operation(summary = "Create initial device for authenticated user")
+    @Operation(summary = "Create device for authenticated user")
     public DeviceResponse createDevice(Principal principal, @Valid @RequestBody CreateDeviceRequest request) {
         return medicationService.createDevice(principal.getName(), request);
+    }
+
+    @GetMapping("/devices")
+    @Operation(summary = "List devices for authenticated user")
+    public List<DeviceResponse> getDevices(Principal principal) {
+        return medicationService.getDevices(principal.getName());
     }
 
     @GetMapping("/devices/{deviceId}/containers")
@@ -116,5 +123,11 @@ public class MedicationController {
                                                                   @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime from,
                                                                   @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime to) {
         return medicationService.getEnvironmentHistory(principal.getName(), deviceId, from, to);
+    }
+
+    @GetMapping("/devices/{deviceId}/edge-credentials")
+    @Operation(summary = "Get edge credentials for a owned device")
+    public EdgeCredentialsResponse getEdgeCredentials(Principal principal, @PathVariable Long deviceId) {
+        return medicationService.getEdgeCredentials(principal.getName(), deviceId);
     }
 }

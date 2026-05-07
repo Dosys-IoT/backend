@@ -4,10 +4,12 @@ import java.time.OffsetDateTime;
 
 public record DeviceResponse(
         Long id,
+        String deviceKey,
         String name,
         Integer configVersion,
         Double humidityThreshold,
         Double temperatureThreshold,
+        OffsetDateTime lastSeenAt,
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt
 ) {

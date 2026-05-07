@@ -34,43 +34,56 @@ public class DeviceInternalController {
     @Operation(summary = "Get internal runtime config for edge integration")
     public RuntimeConfigResponse getRuntimeConfig(
             @PathVariable Long deviceId,
-            @Parameter(description = "Internal technical key") @RequestHeader(name = "X-Device-Key", required = false) String deviceKey) {
-        return deviceInternalService.getRuntimeConfig(deviceId, deviceKey);
+            @Parameter(required = false, description = "Internal technical key (legacy compatibility)") @RequestHeader(name = "X-Device-Key", required = false) String deviceKey,
+            @Parameter(required = false, description = "Global edge service key (preferred)") @RequestHeader(name = "X-Edge-Service-Key", required = false) String serviceKey) {
+        return deviceInternalService.getRuntimeConfig(deviceId, deviceKey, serviceKey);
     }
 
     @PostMapping("/{deviceId}/intake-events")
     @Operation(summary = "Ingest intake event from edge integration")
     public AcknowledgementResponse ingestIntakeEvent(
             @PathVariable Long deviceId,
+            @Parameter(required = false, description = "Internal technical key (legacy compatibility)")
             @RequestHeader(name = "X-Device-Key", required = false) String deviceKey,
+            @Parameter(required = false, description = "Global edge service key (preferred)")
+            @RequestHeader(name = "X-Edge-Service-Key", required = false) String serviceKey,
             @Valid @RequestBody IntakeEventRequest request) {
-        return deviceInternalService.ingestIntakeEvent(deviceId, deviceKey, request);
+        return deviceInternalService.ingestIntakeEvent(deviceId, deviceKey, serviceKey, request);
     }
 
     @PostMapping("/{deviceId}/environment-readings")
     @Operation(summary = "Ingest environment readings from edge integration")
     public AcknowledgementResponse ingestEnvironmentReading(
             @PathVariable Long deviceId,
+            @Parameter(required = false, description = "Internal technical key (legacy compatibility)")
             @RequestHeader(name = "X-Device-Key", required = false) String deviceKey,
+            @Parameter(required = false, description = "Global edge service key (preferred)")
+            @RequestHeader(name = "X-Edge-Service-Key", required = false) String serviceKey,
             @Valid @RequestBody EnvironmentReadingRequest request) {
-        return deviceInternalService.ingestEnvironmentReading(deviceId, deviceKey, request);
+        return deviceInternalService.ingestEnvironmentReading(deviceId, deviceKey, serviceKey, request);
     }
 
     @PostMapping("/{deviceId}/stock-events")
     @Operation(summary = "Ingest stock updates from edge integration")
     public AcknowledgementResponse ingestStockEvent(
             @PathVariable Long deviceId,
+            @Parameter(required = false, description = "Internal technical key (legacy compatibility)")
             @RequestHeader(name = "X-Device-Key", required = false) String deviceKey,
+            @Parameter(required = false, description = "Global edge service key (preferred)")
+            @RequestHeader(name = "X-Edge-Service-Key", required = false) String serviceKey,
             @Valid @RequestBody StockEventRequest request) {
-        return deviceInternalService.ingestStockEvent(deviceId, deviceKey, request);
+        return deviceInternalService.ingestStockEvent(deviceId, deviceKey, serviceKey, request);
     }
 
     @PostMapping("/{deviceId}/heartbeats")
     @Operation(summary = "Ingest heartbeat from edge integration")
     public AcknowledgementResponse ingestHeartbeat(
             @PathVariable Long deviceId,
+            @Parameter(required = false, description = "Internal technical key (legacy compatibility)")
             @RequestHeader(name = "X-Device-Key", required = false) String deviceKey,
+            @Parameter(required = false, description = "Global edge service key (preferred)")
+            @RequestHeader(name = "X-Edge-Service-Key", required = false) String serviceKey,
             @Valid @RequestBody HeartbeatRequest request) {
-        return deviceInternalService.ingestHeartbeat(deviceId, deviceKey, request);
+        return deviceInternalService.ingestHeartbeat(deviceId, deviceKey, serviceKey, request);
     }
 }

@@ -17,13 +17,15 @@ import com.dosys.platform.medication.infrastructure.EnvironmentReadingRepository
 import com.dosys.platform.medication.infrastructure.IntakeRecordRepository;
 import com.dosys.platform.medication.infrastructure.MedicationContainerRepository;
 import com.dosys.platform.medication.infrastructure.MedicationScheduleRepository;
+import com.dosys.platform.shared.exception.ForbiddenException;
 import com.dosys.platform.shared.exception.ResourceNotFoundException;
 import com.dosys.platform.shared.exception.UnauthorizedException;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
+import java.time.ZoneId;
 import java.util.List;
 
 @Service
@@ -34,27 +36,30 @@ public class DeviceInternalService {
     private final MedicationScheduleRepository scheduleRepository;
     private final IntakeRecordRepository intakeRecordRepository;
     private final EnvironmentReadingRepository environmentReadingRepository;
+    private final String edgeServiceKey;
 
     public DeviceInternalService(DeviceRepository deviceRepository,
                                  MedicationContainerRepository containerRepository,
                                  MedicationScheduleRepository scheduleRepository,
                                  IntakeRecordRepository intakeRecordRepository,
-                                 EnvironmentReadingRepository environmentReadingRepository) {
+                                 EnvironmentReadingRepository environmentReadingRepository,
+                                 @Value("${app.edge.service-key}") String edgeServiceKey) {
         this.deviceRepository = deviceRepository;
         this.containerRepository = containerRepository;
         this.scheduleRepository = scheduleRepository;
         this.intakeRecordRepository = intakeRecordRepository;
         this.environmentReadingRepository = environmentReadingRepository;
+        this.edgeServiceKey = edgeServiceKey;
     }
 
     @Transactional(readOnly = true)
-    public RuntimeConfigResponse getRuntimeConfig(Long deviceId, String deviceKey) {
-        Device device = authorize(deviceId, deviceKey);
+    public RuntimeConfigResponse getRuntimeConfig(Long deviceId, String deviceKey, String serviceKey) {
+        Device device = authorize(deviceId, deviceKey, serviceKey);
 
         List<RuntimeConfigResponse.RuntimeContainer> activeContainers = containerRepository.findByDeviceIdOrderByContainerNumberAsc(deviceId)
                 .stream()
                 .filter(c -> Boolean.TRUE.equals(c.getIsEnabled()))
-                .map(c -> new RuntimeConfigResponse.RuntimeContainer(c.getContainerNumber(), c.getMedicationName(), c.getDosageLabel(), c.getRemainingPills()))
+                .map(c -> new RuntimeConfigResponse.RuntimeContainer(c.getContainerNumber(), c.getMedicationName(), c.getDosageLabel(), c.getRemainingPills(), c.getIsEnabled()))
                 .toList();
 
         List<RuntimeConfigResponse.RuntimeSchedule> activeSchedules = scheduleRepository.findByDeviceIdOrderByTimeAsc(deviceId)
@@ -66,8 +71,8 @@ public class DeviceInternalService {
         return new RuntimeConfigResponse(
                 device.getId(),
                 device.getConfigVersion(),
-                OffsetDateTime.now(ZoneOffset.UTC),
-                "UTC",
+                OffsetDateTime.now(ZoneId.of("America/Lima")),
+                "America/Lima",
                 device.getHumidityThreshold(),
                 device.getTemperatureThreshold(),
                 activeContainers,
@@ -76,8 +81,8 @@ public class DeviceInternalService {
     }
 
     @Transactional
-    public AcknowledgementResponse ingestIntakeEvent(Long deviceId, String deviceKey, IntakeEventRequest request) {
-        Device device = authorize(deviceId, deviceKey);
+    public AcknowledgementResponse ingestIntakeEvent(Long deviceId, String deviceKey, String serviceKey, IntakeEventRequest request) {
+        Device device = authorize(deviceId, deviceKey, serviceKey);
 
         MedicationSchedule schedule = scheduleRepository.findByIdAndDeviceId(request.scheduleId(), deviceId)
                 .orElseThrow(() -> new ResourceNotFoundException("Schedule not found for this device"));
@@ -102,8 +107,8 @@ public class DeviceInternalService {
     }
 
     @Transactional
-    public AcknowledgementResponse ingestEnvironmentReading(Long deviceId, String deviceKey, EnvironmentReadingRequest request) {
-        Device device = authorize(deviceId, deviceKey);
+    public AcknowledgementResponse ingestEnvironmentReading(Long deviceId, String deviceKey, String serviceKey, EnvironmentReadingRequest request) {
+        Device device = authorize(deviceId, deviceKey, serviceKey);
 
         EnvironmentReading reading = new EnvironmentReading();
         reading.setDevice(device);
@@ -115,10 +120,8 @@ public class DeviceInternalService {
         boolean overHumidity = request.humidity() > device.getHumidityThreshold();
 
         EnvironmentRiskStatus risk = EnvironmentRiskStatus.NORMAL;
-        if (overTemp && overHumidity) {
-            risk = EnvironmentRiskStatus.CRITICAL;
-        } else if (overTemp || overHumidity) {
-            risk = EnvironmentRiskStatus.WARNING;
+        if (overTemp || overHumidity) {
+            risk = EnvironmentRiskStatus.RISK;
         }
 
         reading.setRiskStatus(risk);
@@ -127,8 +130,8 @@ public class DeviceInternalService {
     }
 
     @Transactional
-    public AcknowledgementResponse ingestStockEvent(Long deviceId, String deviceKey, StockEventRequest request) {
-        authorize(deviceId, deviceKey);
+    public AcknowledgementResponse ingestStockEvent(Long deviceId, String deviceKey, String serviceKey, StockEventRequest request) {
+        authorize(deviceId, deviceKey, serviceKey);
         if (request.containerNumber() < 1 || request.containerNumber() > 5) {
             throw new IllegalArgumentException("containerNumber must be between 1 and 5");
         }
@@ -145,8 +148,8 @@ public class DeviceInternalService {
     }
 
     @Transactional
-    public AcknowledgementResponse ingestHeartbeat(Long deviceId, String deviceKey, HeartbeatRequest request) {
-        Device device = authorize(deviceId, deviceKey);
+    public AcknowledgementResponse ingestHeartbeat(Long deviceId, String deviceKey, String serviceKey, HeartbeatRequest request) {
+        Device device = authorize(deviceId, deviceKey, serviceKey);
 
         device.setLastSeenAt(request.recordedAt());
         device.setLastKnownRtcTime(request.rtcTime());
@@ -157,11 +160,27 @@ public class DeviceInternalService {
         return new AcknowledgementResponse("heartbeat recorded");
     }
 
-    private Device authorize(Long deviceId, String deviceKey) {
-        if (deviceKey == null || deviceKey.isBlank()) {
-            throw new UnauthorizedException("Missing X-Device-Key");
+    private Device authorize(Long deviceId, String deviceKey, String serviceKey) {
+        Device device = deviceRepository.findById(deviceId)
+                .orElseThrow(() -> new ResourceNotFoundException("Device not found"));
+
+        boolean hasServiceKey = serviceKey != null && !serviceKey.isBlank();
+        boolean hasDeviceKey = deviceKey != null && !deviceKey.isBlank();
+
+        if (!hasServiceKey && !hasDeviceKey) {
+            throw new UnauthorizedException("Missing X-Edge-Service-Key or X-Device-Key");
         }
-        return deviceRepository.findByIdAndDeviceKey(deviceId, deviceKey)
-                .orElseThrow(() -> new UnauthorizedException("Invalid device key"));
+
+        if (hasServiceKey) {
+            if (!edgeServiceKey.equals(serviceKey)) {
+                throw new ForbiddenException("Invalid edge service key");
+            }
+            return device;
+        }
+
+        if (!device.getDeviceKey().equals(deviceKey)) {
+            throw new ForbiddenException("Invalid device key");
+        }
+        return device;
     }
 }
