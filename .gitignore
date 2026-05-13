@@ -12,6 +12,29 @@ Thumbs.db
 
 # Env
 .env
+.env.*
+application-local.yml
+src/test/resources/application-local.yml
 
 # Logs
 *.log
+# Build / reports
+surefire-reports/
+failsafe-reports/
+
+# Local runtime
+*.pid
+*.seed
+hs_err_pid*
+replay_pid*
+
+# Local secrets
+secrets/
+*.key
+*.pem
+*.p12
+*.jks
+
+# Local cloud credentials
+.gcloud/
+config/gcloud/

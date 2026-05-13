@@ -152,6 +152,13 @@ class DeviceInternalIntegrationTest {
     }
 
     @Test
+    void runtimeConfigRejectsUnknownDeviceId() throws Exception {
+        mockMvc.perform(get("/api/v1/device/internal/{deviceId}/runtime-config", 999999L)
+                        .header("X-Edge-Service-Key", EDGE_SERVICE_KEY))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
     void ingestValidIntakeEvent() throws Exception {
         mockMvc.perform(post("/api/v1/device/internal/{deviceId}/intake-events", deviceId)
                         .header("X-Edge-Service-Key", EDGE_SERVICE_KEY)
@@ -241,6 +248,40 @@ class DeviceInternalIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
+                                  "temperature": 25.0,
+                                  "humidity": 60.0,
+                                  "recordedAt": "2026-05-04T09:00:00Z"
+                                }
+                                """))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/v1/medication/devices/{deviceId}/environment/latest", deviceId)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.riskStatus").value("NORMAL"));
+
+        mockMvc.perform(post("/api/v1/device/internal/{deviceId}/environment-readings", deviceId)
+                        .header("X-Edge-Service-Key", EDGE_SERVICE_KEY)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "temperature": 35.0,
+                                  "humidity": 65.0,
+                                  "recordedAt": "2026-05-04T09:30:00Z"
+                                }
+                                """))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/v1/medication/devices/{deviceId}/environment/latest", deviceId)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.riskStatus").value("WARNING"));
+
+        mockMvc.perform(post("/api/v1/device/internal/{deviceId}/environment-readings", deviceId)
+                        .header("X-Edge-Service-Key", EDGE_SERVICE_KEY)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
                                   "temperature": 35.0,
                                   "humidity": 72.0,
                                   "recordedAt": "2026-05-04T10:00:00Z"
@@ -251,7 +292,7 @@ class DeviceInternalIntegrationTest {
         mockMvc.perform(get("/api/v1/medication/devices/{deviceId}/environment/latest", deviceId)
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.riskStatus").value("RISK"));
+                .andExpect(jsonPath("$.riskStatus").value("CRITICAL"));
     }
 
     @Test
@@ -290,6 +331,21 @@ class DeviceInternalIntegrationTest {
     }
 
     @Test
+    void rejectStockEventWithInvalidContainerNumber() throws Exception {
+        mockMvc.perform(post("/api/v1/device/internal/{deviceId}/stock-events", deviceId)
+                        .header("X-Device-Key", deviceKey)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "containerNumber": 6,
+                                  "remainingPills": 3,
+                                  "recordedAt": "2026-05-04T11:00:00Z"
+                                }
+                                """))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void registerHeartbeat() throws Exception {
         String now = OffsetDateTime.now(ZoneOffset.UTC).toString();
         mockMvc.perform(post("/api/v1/device/internal/{deviceId}/heartbeats", deviceId)
@@ -306,5 +362,38 @@ class DeviceInternalIntegrationTest {
                 .andExpect(status().isOk());
 
         Assertions.assertEquals("ONLINE", deviceRepository.findById(deviceId).orElseThrow().getLastKnownStatus());
+    }
+
+    @Test
+    void rejectIntakeEventWithInvalidStatus() throws Exception {
+        mockMvc.perform(post("/api/v1/device/internal/{deviceId}/intake-events", deviceId)
+                        .header("X-Device-Key", deviceKey)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "scheduleId": %d,
+                                  "containerNumber": 1,
+                                  "scheduledAt": "2026-05-04T08:00:00Z",
+                                  "confirmedAt": "2026-05-04T08:01:00Z",
+                                  "status": "INVALID"
+                                }
+                                """.formatted(scheduleId)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void heartbeatRejectsMalformedPayload() throws Exception {
+        mockMvc.perform(post("/api/v1/device/internal/{deviceId}/heartbeats", deviceId)
+                        .header("X-Edge-Service-Key", EDGE_SERVICE_KEY)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "recordedAt": "invalid-date",
+                                  "rtcTime": "2026-05-04T08:00:00Z",
+                                  "wifiConnected": true,
+                                  "deviceStatus": ""
+                                }
+                                """))
+                .andExpect(status().isBadRequest());
     }
 }

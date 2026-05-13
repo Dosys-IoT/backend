@@ -78,6 +78,54 @@ class AccessIntegrationTest {
     }
 
     @Test
+    void registerRejectsInvalidEmail() throws Exception {
+        String body = """
+                {
+                  "firstName": "Ana",
+                  "lastName": "Lopez",
+                  "email": "invalid-email",
+                  "password": "StrongPass123"
+                }
+                """;
+
+        mockMvc.perform(post("/api/v1/access/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
+    @Test
+    void registerRejectsWeakOrBlankPassword() throws Exception {
+        String weakPassword = """
+                {
+                  "firstName": "Ana",
+                  "lastName": "Lopez",
+                  "email": "ana2@test.com",
+                  "password": "123"
+                }
+                """;
+        String blankPassword = """
+                {
+                  "firstName": "Ana",
+                  "lastName": "Lopez",
+                  "email": "ana3@test.com",
+                  "password": "   "
+                }
+                """;
+
+        mockMvc.perform(post("/api/v1/access/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(weakPassword))
+                .andExpect(status().isBadRequest());
+
+        mockMvc.perform(post("/api/v1/access/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(blankPassword))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void loginSuccess() throws Exception {
         registerDefaultUser();
 
@@ -116,6 +164,22 @@ class AccessIntegrationTest {
     }
 
     @Test
+    void loginRejectsUnknownEmail() throws Exception {
+        String login = """
+                {
+                  "email": "unknown@test.com",
+                  "password": "StrongPass123"
+                }
+                """;
+
+        mockMvc.perform(post("/api/v1/access/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(login))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("BAD_CREDENTIALS"));
+    }
+
+    @Test
     void meWithValidToken() throws Exception {
         registerDefaultUser();
         String token = loginAndGetToken();
@@ -129,6 +193,14 @@ class AccessIntegrationTest {
     @Test
     void meWithoutToken() throws Exception {
         mockMvc.perform(get("/api/v1/access/me"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+    }
+
+    @Test
+    void meRejectsMalformedBearerToken() throws Exception {
+        mockMvc.perform(get("/api/v1/access/me")
+                        .header("Authorization", "Bearer malformed.token.value"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
     }

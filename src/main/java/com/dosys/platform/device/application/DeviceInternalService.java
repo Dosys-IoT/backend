@@ -120,8 +120,10 @@ public class DeviceInternalService {
         boolean overHumidity = request.humidity() > device.getHumidityThreshold();
 
         EnvironmentRiskStatus risk = EnvironmentRiskStatus.NORMAL;
-        if (overTemp || overHumidity) {
-            risk = EnvironmentRiskStatus.RISK;
+        if (overTemp && overHumidity) {
+            risk = EnvironmentRiskStatus.CRITICAL;
+        } else if (overTemp || overHumidity) {
+            risk = EnvironmentRiskStatus.WARNING;
         }
 
         reading.setRiskStatus(risk);

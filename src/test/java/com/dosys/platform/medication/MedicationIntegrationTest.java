@@ -268,6 +268,104 @@ class MedicationIntegrationTest {
                 .andExpect(status().isNotFound());
     }
 
+    @Test
+    void protectedMedicationEndpointsRejectMissingJwt() throws Exception {
+        mockMvc.perform(get("/api/v1/medication/devices")).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void crossUserIsolationForDevicesContainersSchedulesAndEnvironment() throws Exception {
+        long ownDeviceId = createDevice();
+        enableContainer(ownDeviceId, 1);
+        long ownScheduleId = createSchedule(ownDeviceId, 1);
+        String anotherToken = registerAndLogin("other2-" + System.nanoTime() + "@test.com", "StrongPass123");
+
+        mockMvc.perform(get("/api/v1/medication/devices/{deviceId}/containers", ownDeviceId)
+                        .header("Authorization", "Bearer " + anotherToken))
+                .andExpect(status().isNotFound());
+
+        mockMvc.perform(get("/api/v1/medication/devices/{deviceId}/schedules", ownDeviceId)
+                        .header("Authorization", "Bearer " + anotherToken))
+                .andExpect(status().isNotFound());
+
+        mockMvc.perform(get("/api/v1/medication/devices/{deviceId}/environment/latest", ownDeviceId)
+                        .header("Authorization", "Bearer " + anotherToken))
+                .andExpect(status().isNotFound());
+
+        mockMvc.perform(get("/api/v1/medication/devices/{deviceId}/environment/history", ownDeviceId)
+                        .header("Authorization", "Bearer " + anotherToken)
+                        .param("from", "2026-05-01T00:00:00Z")
+                        .param("to", "2026-05-31T23:59:59Z"))
+                .andExpect(status().isNotFound());
+
+        mockMvc.perform(delete("/api/v1/medication/devices/{deviceId}/schedules/{scheduleId}", ownDeviceId, ownScheduleId)
+                        .header("Authorization", "Bearer " + anotherToken))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void invalidContainerNumbersAreRejected() throws Exception {
+        long deviceId = createDevice();
+        String payload = """
+                {
+                  "medicationName":"Aspirin",
+                  "dosageLabel":"100mg",
+                  "remainingPills":10,
+                  "isEnabled":true
+                }
+                """;
+
+        mockMvc.perform(put("/api/v1/medication/devices/{deviceId}/containers/0", deviceId)
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload))
+                .andExpect(status().isBadRequest());
+
+        mockMvc.perform(put("/api/v1/medication/devices/{deviceId}/containers/6", deviceId)
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void createScheduleRejectsInvalidTimeFormat() throws Exception {
+        long deviceId = createDevice();
+        enableContainer(deviceId, 1);
+
+        mockMvc.perform(post("/api/v1/medication/devices/{deviceId}/schedules", deviceId)
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "containerNumber":1,
+                                  "time":"25:99:00",
+                                  "daysOfWeek":["MONDAY"],
+                                  "isActive":true
+                                }
+                                """))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void createScheduleRejectsInvalidDaysOfWeek() throws Exception {
+        long deviceId = createDevice();
+        enableContainer(deviceId, 1);
+
+        mockMvc.perform(post("/api/v1/medication/devices/{deviceId}/schedules", deviceId)
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "containerNumber":1,
+                                  "time":"08:00:00",
+                                  "daysOfWeek":["FUNDAY"],
+                                  "isActive":true
+                                }
+                                """))
+                .andExpect(status().isBadRequest());
+    }
+
     private long createDevice() throws Exception {
         String response = mockMvc.perform(post("/api/v1/medication/devices")
                         .header("Authorization", "Bearer " + token)
