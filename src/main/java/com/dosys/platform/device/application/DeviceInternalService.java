@@ -84,8 +84,28 @@ public class DeviceInternalService {
 
     @Transactional(readOnly = true)
     public RuntimeConfigResponse getRuntimeConfig(Long deviceId, String deviceKey, String serviceKey) {
-        Device device = authorize(deviceId, deviceKey, serviceKey);
+        boolean hasServiceKey = serviceKey != null && !serviceKey.isBlank();
+        boolean hasDeviceKey = deviceKey != null && !deviceKey.isBlank();
+        if (!hasServiceKey && !hasDeviceKey) {
+            throw new UnauthorizedException("Missing X-Edge-Service-Key or X-Device-Key");
+        }
 
+        if (hasServiceKey) {
+            if (!edgeServiceKey.equals(serviceKey)) {
+                throw new ForbiddenException("Invalid edge service key");
+            }
+            Device device = deviceRepository.findById(deviceId).orElse(null);
+            if (device == null) {
+                return buildDefaultRuntimeConfig(deviceId);
+            }
+            return buildRuntimeConfig(deviceId, device);
+        }
+
+        Device device = authorize(deviceId, deviceKey, serviceKey);
+        return buildRuntimeConfig(deviceId, device);
+    }
+
+    private RuntimeConfigResponse buildRuntimeConfig(Long deviceId, Device device) {
         Map<Integer, MedicationContainer> containersByNumber = new LinkedHashMap<>();
         containerRepository.findByDeviceIdOrderByContainerNumberAsc(deviceId)
                 .forEach(container -> containersByNumber.put(container.getContainerNumber(), container));
@@ -107,6 +127,27 @@ public class DeviceInternalService {
                 DEVICE_TIMEZONE.getId(),
                 runtimeContainers,
                 schedules,
+                new RuntimeConfigResponse.EnvironmentThresholds(
+                        TEMPERATURE_WARNING,
+                        TEMPERATURE_CRITICAL,
+                        HUMIDITY_WARNING,
+                        HUMIDITY_CRITICAL
+                )
+        );
+    }
+
+    private RuntimeConfigResponse buildDefaultRuntimeConfig(Long deviceId) {
+        List<RuntimeConfigResponse.RuntimeContainer> runtimeContainers = java.util.stream.IntStream.rangeClosed(1, DEFAULT_CONTAINER_COUNT)
+                .mapToObj(containerNumber -> new RuntimeConfigResponse.RuntimeContainer(containerNumber, "", "", 0, Boolean.FALSE))
+                .toList();
+
+        return new RuntimeConfigResponse(
+                String.valueOf(deviceId),
+                1,
+                OffsetDateTime.now(UTC).toString(),
+                DEVICE_TIMEZONE.getId(),
+                runtimeContainers,
+                List.of(),
                 new RuntimeConfigResponse.EnvironmentThresholds(
                         TEMPERATURE_WARNING,
                         TEMPERATURE_CRITICAL,
