@@ -20,6 +20,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 
 public class StepDefinitions {
+    private static final String EDGE_SERVICE_KEY = "dosys-local-edge-service-key-change-me-2026";
 
     @Autowired private MockMvc mockMvc;
     @Autowired private ObjectMapper objectMapper;
@@ -140,10 +141,10 @@ public class StepDefinitions {
     @And("the device runtime configuration contains the scheduled dose")
     public void runtimeContainsSchedule() throws Exception {
         MvcResult result = mockMvc.perform(get("/api/v1/device/internal/{deviceId}/runtime-config", deviceId)
-                        .header("X-Device-Key", deviceKey))
+                        .header("X-Edge-Service-Key", EDGE_SERVICE_KEY))
                 .andReturn();
         Assertions.assertEquals(200, result.getResponse().getStatus());
-        Assertions.assertEquals(1, read(result).get("activeSchedules").size());
+        Assertions.assertEquals(1, read(result).get("schedules").size());
     }
 
     @Given("two authenticated caregivers")
@@ -209,7 +210,7 @@ public class StepDefinitions {
     @When("the device requests runtime configuration using a valid device key")
     public void deviceRequestsRuntime() throws Exception {
         lastResult = mockMvc.perform(get("/api/v1/device/internal/{deviceId}/runtime-config", deviceId)
-                        .header("X-Device-Key", deviceKey))
+                        .header("X-Edge-Service-Key", EDGE_SERVICE_KEY))
                 .andReturn();
     }
 
@@ -220,18 +221,20 @@ public class StepDefinitions {
 
     @And("the configuration includes the active schedule")
     public void configIncludesActiveSchedule() throws Exception {
-        Assertions.assertEquals(1, read(lastResult).get("activeSchedules").size());
+        Assertions.assertEquals(1, read(lastResult).get("schedules").size());
     }
 
     @When("the device posts temperature and humidity using a valid internal key")
     public void postEnvironment() throws Exception {
         lastResult = mockMvc.perform(post("/api/v1/device/internal/{deviceId}/environment-readings", deviceId)
-                        .header("X-Device-Key", deviceKey)
+                        .header("X-Edge-Service-Key", EDGE_SERVICE_KEY)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{" +
+                                "\"eventId\":\"env-1\"," +
                                 "\"temperature\":31.0," +
                                 "\"humidity\":71.0," +
-                                "\"recordedAt\":\"2026-05-04T10:00:00Z\"}"))
+                                "\"recordedAt\":\"2026-05-04T10:00:00\"," +
+                                "\"firmwareVersion\":\"1.0.0\"}"))
                 .andReturn();
     }
 
@@ -252,14 +255,17 @@ public class StepDefinitions {
     @When("the device posts an intake event with status TAKEN")
     public void postIntakeTaken() throws Exception {
         lastResult = mockMvc.perform(post("/api/v1/device/internal/{deviceId}/intake-events", deviceId)
-                        .header("X-Device-Key", deviceKey)
+                        .header("X-Edge-Service-Key", EDGE_SERVICE_KEY)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{" +
+                                "\"eventId\":\"intake-1\"," +
                                 "\"scheduleId\":" + scheduleId + "," +
                                 "\"containerNumber\":1," +
-                                "\"scheduledAt\":\"2026-05-04T08:00:00Z\"," +
-                                "\"confirmedAt\":\"2026-05-04T08:01:00Z\"," +
-                                "\"status\":\"TAKEN\"}"))
+                                "\"scheduledAt\":\"2026-05-04T08:00:00\"," +
+                                "\"confirmedAt\":\"2026-05-04T08:01:00\"," +
+                                "\"status\":\"TAKEN\"," +
+                                "\"source\":\"PHYSICAL_BUTTON\"," +
+                                "\"buttonPin\":15}"))
                 .andReturn();
     }
 
@@ -281,12 +287,14 @@ public class StepDefinitions {
     @When("the device posts a stock event for container 1")
     public void postStock() throws Exception {
         lastResult = mockMvc.perform(post("/api/v1/device/internal/{deviceId}/stock-events", deviceId)
-                        .header("X-Device-Key", deviceKey)
+                        .header("X-Edge-Service-Key", EDGE_SERVICE_KEY)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{" +
+                                "\"eventId\":\"stock-1\"," +
                                 "\"containerNumber\":1," +
                                 "\"remainingPills\":9," +
-                                "\"recordedAt\":\"2026-05-04T10:00:00Z\"}"))
+                                "\"reportedAt\":\"2026-05-04T10:00:00\"," +
+                                "\"reason\":\"INTAKE_CONFIRMED\"}"))
                 .andReturn();
     }
 
@@ -301,7 +309,7 @@ public class StepDefinitions {
     @When("the device calls an internal endpoint with an invalid key")
     public void callInternalWithInvalidKey() throws Exception {
         lastResult = mockMvc.perform(get("/api/v1/device/internal/{deviceId}/runtime-config", deviceId)
-                        .header("X-Device-Key", "bad-key"))
+                        .header("X-Edge-Service-Key", "bad-key"))
                 .andReturn();
     }
 

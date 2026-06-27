@@ -26,6 +26,9 @@ public class IntakeRecord {
     @JoinColumn(name = "device_id", nullable = false)
     private Device device;
 
+    @Column(name = "event_id", length = 120)
+    private String eventId;
+
     @Column(name = "schedule_id", nullable = false)
     private Long scheduleId;
 
@@ -42,10 +45,19 @@ public class IntakeRecord {
     @Column(nullable = false, length = 20)
     private IntakeStatus status;
 
+    @Enumerated(EnumType.STRING)
+    @Column(length = 30)
+    private IntakeSource source;
+
+    @Column(name = "button_pin")
+    private Integer buttonPin;
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
     public Device getDevice() { return device; }
     public void setDevice(Device device) { this.device = device; }
+    public String getEventId() { return eventId; }
+    public void setEventId(String eventId) { this.eventId = eventId; }
     public Long getScheduleId() { return scheduleId; }
     public void setScheduleId(Long scheduleId) { this.scheduleId = scheduleId; }
     public Integer getContainerNumber() { return containerNumber; }
@@ -56,4 +68,8 @@ public class IntakeRecord {
     public void setConfirmedAt(OffsetDateTime confirmedAt) { this.confirmedAt = confirmedAt; }
     public IntakeStatus getStatus() { return status; }
     public void setStatus(IntakeStatus status) { this.status = status; }
+    public IntakeSource getSource() { return source; }
+    public void setSource(IntakeSource source) { this.source = source; }
+    public Integer getButtonPin() { return buttonPin; }
+    public void setButtonPin(Integer buttonPin) { this.buttonPin = buttonPin; }
 }

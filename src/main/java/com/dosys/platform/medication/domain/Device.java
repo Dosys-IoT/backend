@@ -54,6 +54,36 @@ public class Device {
     @Column(name = "last_known_wifi_connected")
     private Boolean lastKnownWifiConnected;
 
+    @Column(name = "last_known_mqtt_connected")
+    private Boolean lastKnownMqttConnected;
+
+    @Column(name = "last_known_rtc_ok")
+    private Boolean lastKnownRtcOk;
+
+    @Column(name = "last_known_sht3x_ok")
+    private Boolean lastKnownSht3xOk;
+
+    @Column(name = "last_known_dfplayer_ok")
+    private Boolean lastKnownDfPlayerOk;
+
+    @Column(name = "last_known_sd_card_ok")
+    private Boolean lastKnownSdCardOk;
+
+    @Column(name = "last_known_switch_ok")
+    private Boolean lastKnownSwitchOk;
+
+    @Column(name = "last_known_button_pin")
+    private Integer lastKnownButtonPin;
+
+    @Column(name = "last_known_free_heap")
+    private Long lastKnownFreeHeap;
+
+    @Column(name = "last_known_rssi")
+    private Integer lastKnownRssi;
+
+    @Column(name = "last_known_firmware_version", length = 60)
+    private String lastKnownFirmwareVersion;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
 
@@ -94,6 +124,26 @@ public class Device {
     public void setLastKnownStatus(String lastKnownStatus) { this.lastKnownStatus = lastKnownStatus; }
     public Boolean getLastKnownWifiConnected() { return lastKnownWifiConnected; }
     public void setLastKnownWifiConnected(Boolean lastKnownWifiConnected) { this.lastKnownWifiConnected = lastKnownWifiConnected; }
+    public Boolean getLastKnownMqttConnected() { return lastKnownMqttConnected; }
+    public void setLastKnownMqttConnected(Boolean lastKnownMqttConnected) { this.lastKnownMqttConnected = lastKnownMqttConnected; }
+    public Boolean getLastKnownRtcOk() { return lastKnownRtcOk; }
+    public void setLastKnownRtcOk(Boolean lastKnownRtcOk) { this.lastKnownRtcOk = lastKnownRtcOk; }
+    public Boolean getLastKnownSht3xOk() { return lastKnownSht3xOk; }
+    public void setLastKnownSht3xOk(Boolean lastKnownSht3xOk) { this.lastKnownSht3xOk = lastKnownSht3xOk; }
+    public Boolean getLastKnownDfPlayerOk() { return lastKnownDfPlayerOk; }
+    public void setLastKnownDfPlayerOk(Boolean lastKnownDfPlayerOk) { this.lastKnownDfPlayerOk = lastKnownDfPlayerOk; }
+    public Boolean getLastKnownSdCardOk() { return lastKnownSdCardOk; }
+    public void setLastKnownSdCardOk(Boolean lastKnownSdCardOk) { this.lastKnownSdCardOk = lastKnownSdCardOk; }
+    public Boolean getLastKnownSwitchOk() { return lastKnownSwitchOk; }
+    public void setLastKnownSwitchOk(Boolean lastKnownSwitchOk) { this.lastKnownSwitchOk = lastKnownSwitchOk; }
+    public Integer getLastKnownButtonPin() { return lastKnownButtonPin; }
+    public void setLastKnownButtonPin(Integer lastKnownButtonPin) { this.lastKnownButtonPin = lastKnownButtonPin; }
+    public Long getLastKnownFreeHeap() { return lastKnownFreeHeap; }
+    public void setLastKnownFreeHeap(Long lastKnownFreeHeap) { this.lastKnownFreeHeap = lastKnownFreeHeap; }
+    public Integer getLastKnownRssi() { return lastKnownRssi; }
+    public void setLastKnownRssi(Integer lastKnownRssi) { this.lastKnownRssi = lastKnownRssi; }
+    public String getLastKnownFirmwareVersion() { return lastKnownFirmwareVersion; }
+    public void setLastKnownFirmwareVersion(String lastKnownFirmwareVersion) { this.lastKnownFirmwareVersion = lastKnownFirmwareVersion; }
     public OffsetDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(OffsetDateTime createdAt) { this.createdAt = createdAt; }
     public OffsetDateTime getUpdatedAt() { return updatedAt; }

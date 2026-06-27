@@ -10,4 +10,5 @@ import java.util.Optional;
 public interface EnvironmentReadingRepository extends JpaRepository<EnvironmentReading, Long> {
     Optional<EnvironmentReading> findFirstByDeviceIdOrderByRecordedAtDesc(Long deviceId);
     List<EnvironmentReading> findByDeviceIdAndRecordedAtBetweenOrderByRecordedAtAsc(Long deviceId, OffsetDateTime from, OffsetDateTime to);
+    Optional<EnvironmentReading> findByDeviceIdAndEventId(Long deviceId, String eventId);
 }

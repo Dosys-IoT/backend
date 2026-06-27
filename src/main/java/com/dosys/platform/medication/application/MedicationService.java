@@ -18,6 +18,7 @@ import com.dosys.platform.medication.interfaces.rest.dto.request.UpsertScheduleR
 import com.dosys.platform.medication.interfaces.rest.dto.response.AdherenceCalendarResponse;
 import com.dosys.platform.medication.interfaces.rest.dto.response.ContainerResponse;
 import com.dosys.platform.medication.interfaces.rest.dto.response.DeviceResponse;
+import com.dosys.platform.medication.interfaces.rest.dto.response.DeviceStatusResponse;
 import com.dosys.platform.medication.interfaces.rest.dto.response.EdgeCredentialsResponse;
 import com.dosys.platform.medication.interfaces.rest.dto.response.EnvironmentReadingResponse;
 import com.dosys.platform.medication.interfaces.rest.dto.response.ScheduleResponse;
@@ -253,6 +254,24 @@ public class MedicationService {
     public EdgeCredentialsResponse getEdgeCredentials(String userEmail, Long deviceId) {
         Device device = getOwnedDevice(userEmail, deviceId);
         return new EdgeCredentialsResponse(device.getId(), device.getDeviceKey());
+    }
+
+    @Transactional(readOnly = true)
+    public DeviceStatusResponse getDeviceStatus(String userEmail, Long deviceId) {
+        Device device = getOwnedDevice(userEmail, deviceId);
+        return new DeviceStatusResponse(
+                String.valueOf(device.getId()),
+                device.getLastKnownStatus() == null ? "OFFLINE" : device.getLastKnownStatus(),
+                device.getLastSeenAt(),
+                device.getLastKnownRtcOk(),
+                device.getLastKnownSht3xOk(),
+                device.getLastKnownDfPlayerOk(),
+                device.getLastKnownSdCardOk(),
+                device.getLastKnownSwitchOk(),
+                device.getLastKnownButtonPin(),
+                device.getLastKnownRssi(),
+                device.getLastKnownFirmwareVersion()
+        );
     }
 
     private MedicationContainer getEnabledContainer(Long deviceId, Integer containerNumber) {

@@ -5,8 +5,11 @@ import com.dosys.platform.device.interfaces.rest.internal.dto.request.Environmen
 import com.dosys.platform.device.interfaces.rest.internal.dto.request.HeartbeatRequest;
 import com.dosys.platform.device.interfaces.rest.internal.dto.request.IntakeEventRequest;
 import com.dosys.platform.device.interfaces.rest.internal.dto.request.StockEventRequest;
-import com.dosys.platform.device.interfaces.rest.internal.dto.response.AcknowledgementResponse;
+import com.dosys.platform.device.interfaces.rest.internal.dto.response.EnvironmentReadingResponse;
+import com.dosys.platform.device.interfaces.rest.internal.dto.response.HeartbeatResponse;
+import com.dosys.platform.device.interfaces.rest.internal.dto.response.IntakeEventResponse;
 import com.dosys.platform.device.interfaces.rest.internal.dto.response.RuntimeConfigResponse;
+import com.dosys.platform.device.interfaces.rest.internal.dto.response.StockEventResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -34,56 +37,58 @@ public class DeviceInternalController {
     @Operation(summary = "Get internal runtime config for edge integration")
     public RuntimeConfigResponse getRuntimeConfig(
             @PathVariable Long deviceId,
-            @Parameter(required = false, description = "Internal technical key (legacy compatibility)") @RequestHeader(name = "X-Device-Key", required = false) String deviceKey,
-            @Parameter(required = false, description = "Global edge service key (preferred)") @RequestHeader(name = "X-Edge-Service-Key", required = false) String serviceKey) {
+            @Parameter(required = false, description = "Legacy device-specific key")
+            @RequestHeader(name = "X-Device-Key", required = false) String deviceKey,
+            @Parameter(required = false, description = "Preferred edge service key")
+            @RequestHeader(name = "X-Edge-Service-Key", required = false) String serviceKey) {
         return deviceInternalService.getRuntimeConfig(deviceId, deviceKey, serviceKey);
     }
 
-    @PostMapping("/{deviceId}/intake-events")
-    @Operation(summary = "Ingest intake event from edge integration")
-    public AcknowledgementResponse ingestIntakeEvent(
-            @PathVariable Long deviceId,
-            @Parameter(required = false, description = "Internal technical key (legacy compatibility)")
-            @RequestHeader(name = "X-Device-Key", required = false) String deviceKey,
-            @Parameter(required = false, description = "Global edge service key (preferred)")
-            @RequestHeader(name = "X-Edge-Service-Key", required = false) String serviceKey,
-            @Valid @RequestBody IntakeEventRequest request) {
-        return deviceInternalService.ingestIntakeEvent(deviceId, deviceKey, serviceKey, request);
-    }
-
     @PostMapping("/{deviceId}/environment-readings")
-    @Operation(summary = "Ingest environment readings from edge integration")
-    public AcknowledgementResponse ingestEnvironmentReading(
+    @Operation(summary = "Ingest environment reading from edge integration")
+    public EnvironmentReadingResponse ingestEnvironmentReading(
             @PathVariable Long deviceId,
-            @Parameter(required = false, description = "Internal technical key (legacy compatibility)")
+            @Parameter(required = false, description = "Legacy device-specific key")
             @RequestHeader(name = "X-Device-Key", required = false) String deviceKey,
-            @Parameter(required = false, description = "Global edge service key (preferred)")
+            @Parameter(required = false, description = "Preferred edge service key")
             @RequestHeader(name = "X-Edge-Service-Key", required = false) String serviceKey,
             @Valid @RequestBody EnvironmentReadingRequest request) {
         return deviceInternalService.ingestEnvironmentReading(deviceId, deviceKey, serviceKey, request);
     }
 
-    @PostMapping("/{deviceId}/stock-events")
-    @Operation(summary = "Ingest stock updates from edge integration")
-    public AcknowledgementResponse ingestStockEvent(
-            @PathVariable Long deviceId,
-            @Parameter(required = false, description = "Internal technical key (legacy compatibility)")
-            @RequestHeader(name = "X-Device-Key", required = false) String deviceKey,
-            @Parameter(required = false, description = "Global edge service key (preferred)")
-            @RequestHeader(name = "X-Edge-Service-Key", required = false) String serviceKey,
-            @Valid @RequestBody StockEventRequest request) {
-        return deviceInternalService.ingestStockEvent(deviceId, deviceKey, serviceKey, request);
-    }
-
     @PostMapping("/{deviceId}/heartbeats")
     @Operation(summary = "Ingest heartbeat from edge integration")
-    public AcknowledgementResponse ingestHeartbeat(
+    public HeartbeatResponse ingestHeartbeat(
             @PathVariable Long deviceId,
-            @Parameter(required = false, description = "Internal technical key (legacy compatibility)")
+            @Parameter(required = false, description = "Legacy device-specific key")
             @RequestHeader(name = "X-Device-Key", required = false) String deviceKey,
-            @Parameter(required = false, description = "Global edge service key (preferred)")
+            @Parameter(required = false, description = "Preferred edge service key")
             @RequestHeader(name = "X-Edge-Service-Key", required = false) String serviceKey,
             @Valid @RequestBody HeartbeatRequest request) {
         return deviceInternalService.ingestHeartbeat(deviceId, deviceKey, serviceKey, request);
+    }
+
+    @PostMapping("/{deviceId}/intake-events")
+    @Operation(summary = "Ingest intake event from edge integration")
+    public IntakeEventResponse ingestIntakeEvent(
+            @PathVariable Long deviceId,
+            @Parameter(required = false, description = "Legacy device-specific key")
+            @RequestHeader(name = "X-Device-Key", required = false) String deviceKey,
+            @Parameter(required = false, description = "Preferred edge service key")
+            @RequestHeader(name = "X-Edge-Service-Key", required = false) String serviceKey,
+            @Valid @RequestBody IntakeEventRequest request) {
+        return deviceInternalService.ingestIntakeEvent(deviceId, deviceKey, serviceKey, request);
+    }
+
+    @PostMapping("/{deviceId}/stock-events")
+    @Operation(summary = "Ingest stock updates from edge integration")
+    public StockEventResponse ingestStockEvent(
+            @PathVariable Long deviceId,
+            @Parameter(required = false, description = "Legacy device-specific key")
+            @RequestHeader(name = "X-Device-Key", required = false) String deviceKey,
+            @Parameter(required = false, description = "Preferred edge service key")
+            @RequestHeader(name = "X-Edge-Service-Key", required = false) String serviceKey,
+            @Valid @RequestBody StockEventRequest request) {
+        return deviceInternalService.ingestStockEvent(deviceId, deviceKey, serviceKey, request);
     }
 }

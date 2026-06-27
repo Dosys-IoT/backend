@@ -21,7 +21,7 @@ public class CorsConfig {
                 "https://frontend-web-jet-seven.vercel.app"
         ));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        config.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Device-Key"));
+        config.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Device-Key", "X-Edge-Service-Key"));
         config.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

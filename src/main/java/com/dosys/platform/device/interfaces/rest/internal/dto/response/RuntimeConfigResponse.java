@@ -1,26 +1,40 @@
 package com.dosys.platform.device.interfaces.rest.internal.dto.response;
 
-import java.time.DayOfWeek;
-import java.time.LocalTime;
-import java.time.OffsetDateTime;
 import java.util.List;
-import java.util.Set;
 
 public record RuntimeConfigResponse(
-        Long deviceId,
+        String deviceId,
         Integer configVersion,
-        OffsetDateTime serverTime,
+        String serverTime,
         String timezone,
-        Double humidityThreshold,
-        Double temperatureThreshold,
         List<RuntimeContainer> containers,
-        List<RuntimeSchedule> activeSchedules
+        List<RuntimeSchedule> schedules,
+        EnvironmentThresholds environmentThresholds
 ) {
-    public record RuntimeContainer(Integer containerNumber,
-                                   String medicationName,
-                                   String dosageLabel,
-                                   Integer remainingPills,
-                                   Boolean isEnabled) {}
+    public record RuntimeContainer(
+            Integer containerNumber,
+            String medicationName,
+            String dosageLabel,
+            Integer remainingPills,
+            Boolean enabled
+    ) {
+    }
 
-    public record RuntimeSchedule(Long scheduleId, Integer containerNumber, LocalTime time, Set<DayOfWeek> daysOfWeek) {}
+    public record RuntimeSchedule(
+            String scheduleId,
+            Integer containerNumber,
+            String time,
+            List<String> daysOfWeek,
+            Integer audioTrack,
+            Integer confirmationWindowSeconds
+    ) {
+    }
+
+    public record EnvironmentThresholds(
+            Integer temperatureWarning,
+            Integer temperatureCritical,
+            Integer humidityWarning,
+            Integer humidityCritical
+    ) {
+    }
 }

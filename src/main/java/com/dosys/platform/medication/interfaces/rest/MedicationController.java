@@ -7,6 +7,7 @@ import com.dosys.platform.medication.interfaces.rest.dto.request.UpsertScheduleR
 import com.dosys.platform.medication.interfaces.rest.dto.response.AdherenceCalendarResponse;
 import com.dosys.platform.medication.interfaces.rest.dto.response.ContainerResponse;
 import com.dosys.platform.medication.interfaces.rest.dto.response.DeviceResponse;
+import com.dosys.platform.medication.interfaces.rest.dto.response.DeviceStatusResponse;
 import com.dosys.platform.medication.interfaces.rest.dto.response.EdgeCredentialsResponse;
 import com.dosys.platform.medication.interfaces.rest.dto.response.EnvironmentReadingResponse;
 import com.dosys.platform.medication.interfaces.rest.dto.response.ScheduleResponse;
@@ -123,6 +124,12 @@ public class MedicationController {
                                                                   @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime from,
                                                                   @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime to) {
         return medicationService.getEnvironmentHistory(principal.getName(), deviceId, from, to);
+    }
+
+    @GetMapping("/devices/{deviceId}/status")
+    @Operation(summary = "Get latest device status for frontend")
+    public DeviceStatusResponse getDeviceStatus(Principal principal, @PathVariable Long deviceId) {
+        return medicationService.getDeviceStatus(principal.getName(), deviceId);
     }
 
     @GetMapping("/devices/{deviceId}/edge-credentials")

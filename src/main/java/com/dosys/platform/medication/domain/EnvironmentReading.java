@@ -26,6 +26,9 @@ public class EnvironmentReading {
     @JoinColumn(name = "device_id", nullable = false)
     private Device device;
 
+    @Column(name = "event_id", length = 120)
+    private String eventId;
+
     @Column(nullable = false)
     private Double temperature;
 
@@ -39,10 +42,15 @@ public class EnvironmentReading {
     @Column(name = "risk_status", nullable = false, length = 20)
     private EnvironmentRiskStatus riskStatus;
 
+    @Column(name = "firmware_version", length = 60)
+    private String firmwareVersion;
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
     public Device getDevice() { return device; }
     public void setDevice(Device device) { this.device = device; }
+    public String getEventId() { return eventId; }
+    public void setEventId(String eventId) { this.eventId = eventId; }
     public Double getTemperature() { return temperature; }
     public void setTemperature(Double temperature) { this.temperature = temperature; }
     public Double getHumidity() { return humidity; }
@@ -51,4 +59,6 @@ public class EnvironmentReading {
     public void setRecordedAt(OffsetDateTime recordedAt) { this.recordedAt = recordedAt; }
     public EnvironmentRiskStatus getRiskStatus() { return riskStatus; }
     public void setRiskStatus(EnvironmentRiskStatus riskStatus) { this.riskStatus = riskStatus; }
+    public String getFirmwareVersion() { return firmwareVersion; }
+    public void setFirmwareVersion(String firmwareVersion) { this.firmwareVersion = firmwareVersion; }
 }

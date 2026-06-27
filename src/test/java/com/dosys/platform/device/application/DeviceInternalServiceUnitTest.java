@@ -1,15 +1,20 @@
 package com.dosys.platform.device.application;
 
+import com.dosys.platform.device.interfaces.rest.internal.dto.request.EnvironmentReadingRequest;
 import com.dosys.platform.device.interfaces.rest.internal.dto.request.HeartbeatRequest;
 import com.dosys.platform.device.interfaces.rest.internal.dto.request.IntakeEventRequest;
 import com.dosys.platform.device.interfaces.rest.internal.dto.request.StockEventRequest;
 import com.dosys.platform.device.interfaces.rest.internal.dto.response.RuntimeConfigResponse;
 import com.dosys.platform.medication.domain.Device;
+import com.dosys.platform.medication.domain.EnvironmentRiskStatus;
 import com.dosys.platform.medication.domain.IntakeRecord;
+import com.dosys.platform.medication.domain.IntakeSource;
 import com.dosys.platform.medication.domain.IntakeStatus;
 import com.dosys.platform.medication.domain.MedicationContainer;
 import com.dosys.platform.medication.domain.MedicationSchedule;
+import com.dosys.platform.medication.infrastructure.DeviceHeartbeatRepository;
 import com.dosys.platform.medication.infrastructure.DeviceRepository;
+import com.dosys.platform.medication.infrastructure.DeviceStockEventRepository;
 import com.dosys.platform.medication.infrastructure.EnvironmentReadingRepository;
 import com.dosys.platform.medication.infrastructure.IntakeRecordRepository;
 import com.dosys.platform.medication.infrastructure.MedicationContainerRepository;
@@ -26,6 +31,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.DayOfWeek;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -46,6 +52,8 @@ class DeviceInternalServiceUnitTest {
     @Mock private MedicationScheduleRepository scheduleRepository;
     @Mock private IntakeRecordRepository intakeRecordRepository;
     @Mock private EnvironmentReadingRepository environmentReadingRepository;
+    @Mock private DeviceHeartbeatRepository heartbeatRepository;
+    @Mock private DeviceStockEventRepository stockEventRepository;
 
     @InjectMocks private DeviceInternalService deviceInternalService;
 
@@ -59,89 +67,97 @@ class DeviceInternalServiceUnitTest {
         device.setId(100L);
         device.setDeviceKey("device-key");
         device.setConfigVersion(3);
-        device.setHumidityThreshold(70.0);
-        device.setTemperatureThreshold(30.0);
 
         when(deviceRepository.findById(100L)).thenReturn(Optional.of(device));
     }
 
     @Test
-    void runtimeConfigIncludesOnlyEnabledContainersAndActiveSchedules() {
+    void runtimeConfigIncludesDefaultsAndMappedSchedules() {
         MedicationContainer enabled = new MedicationContainer();
         enabled.setContainerNumber(1);
+        enabled.setMedicationName("Ibuprofen");
+        enabled.setDosageLabel("200mg");
+        enabled.setRemainingPills(12);
         enabled.setIsEnabled(true);
-        MedicationContainer disabled = new MedicationContainer();
-        disabled.setContainerNumber(2);
-        disabled.setIsEnabled(false);
 
         MedicationSchedule active = new MedicationSchedule();
         active.setId(1L);
         active.setContainer(enabled);
         active.setTime(LocalTime.NOON);
-        active.setDaysOfWeek(Set.of(DayOfWeek.MONDAY));
+        active.setDaysOfWeek(Set.of(DayOfWeek.MONDAY, DayOfWeek.WEDNESDAY));
         active.setIsActive(true);
 
-        MedicationSchedule inactive = new MedicationSchedule();
-        inactive.setId(2L);
-        inactive.setContainer(enabled);
-        inactive.setTime(LocalTime.MIDNIGHT);
-        inactive.setDaysOfWeek(Set.of(DayOfWeek.TUESDAY));
-        inactive.setIsActive(false);
+        when(containerRepository.findByDeviceIdOrderByContainerNumberAsc(100L)).thenReturn(List.of(enabled));
+        when(scheduleRepository.findByDeviceIdOrderByTimeAsc(100L)).thenReturn(List.of(active));
 
-        when(containerRepository.findByDeviceIdOrderByContainerNumberAsc(100L)).thenReturn(List.of(enabled, disabled));
-        when(scheduleRepository.findByDeviceIdOrderByTimeAsc(100L)).thenReturn(List.of(active, inactive));
+        RuntimeConfigResponse response = deviceInternalService.getRuntimeConfig(100L, null, "edge-key");
 
-        RuntimeConfigResponse response = deviceInternalService.getRuntimeConfig(100L, "device-key", null);
+        assertThat(response.deviceId()).isEqualTo("100");
+        assertThat(response.containers()).hasSize(5);
+        assertThat(response.schedules()).hasSize(1);
+        assertThat(response.environmentThresholds().temperatureWarning()).isEqualTo(28);
+    }
 
-        assertThat(response.containers()).hasSize(1);
-        assertThat(response.activeSchedules()).hasSize(1);
+    @Test
+    void ingestEnvironmentReadingCalculatesRiskAndPersistsEventId() {
+        when(environmentReadingRepository.findByDeviceIdAndEventId(100L, "env-1")).thenReturn(Optional.empty());
+        when(environmentReadingRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var response = deviceInternalService.ingestEnvironmentReading(100L, null, "edge-key",
+                new EnvironmentReadingRequest("env-1", 32.0, 80.0, LocalDateTime.parse("2026-06-27T12:00:00"), "1.0.0"));
+
+        assertThat(response.riskStatus()).isEqualTo(EnvironmentRiskStatus.CRITICAL);
     }
 
     @Test
     void intakeEventRejectsUnknownSchedule() {
+        when(intakeRecordRepository.findByDeviceIdAndEventId(100L, "intake-1")).thenReturn(Optional.empty());
         when(scheduleRepository.findByIdAndDeviceId(999L, 100L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> deviceInternalService.ingestIntakeEvent(100L, "device-key", null,
-                new IntakeEventRequest(999L, 1, OffsetDateTime.parse("2026-05-04T08:00:00Z"), null, IntakeStatus.TAKEN)))
+        assertThatThrownBy(() -> deviceInternalService.ingestIntakeEvent(100L, null, "edge-key",
+                new IntakeEventRequest( "intake-1", 999L, 1, LocalDateTime.parse("2026-05-04T08:00:00"), null,
+                        IntakeStatus.TAKEN, IntakeSource.PHYSICAL_BUTTON, 15)))
                 .isInstanceOf(ResourceNotFoundException.class);
     }
 
     @Test
-    void intakeEventUpsertsDuplicateIntake() {
-        MedicationContainer container = new MedicationContainer();
-        container.setContainerNumber(1);
-        MedicationSchedule schedule = new MedicationSchedule();
-        schedule.setId(10L);
-        schedule.setContainer(container);
-
+    void intakeEventUpsertsDuplicateIntakeByEventId() {
         IntakeRecord existing = new IntakeRecord();
+        existing.setDevice(device);
+        existing.setEventId("intake-dup");
+        existing.setScheduleId(10L);
+        existing.setContainerNumber(1);
+        existing.setScheduledAt(OffsetDateTime.parse("2026-05-04T08:00:00Z"));
+        existing.setStatus(IntakeStatus.MISSED);
+        existing.setSource(IntakeSource.PHYSICAL_BUTTON);
+        existing.setButtonPin(15);
 
-        when(scheduleRepository.findByIdAndDeviceId(10L, 100L)).thenReturn(Optional.of(schedule));
-        when(intakeRecordRepository.findByDeviceIdAndScheduleIdAndScheduledAt(any(), any(), any())).thenReturn(Optional.of(existing));
+        when(intakeRecordRepository.findByDeviceIdAndEventId(100L, "intake-dup")).thenReturn(Optional.of(existing));
 
-        deviceInternalService.ingestIntakeEvent(100L, "device-key", null,
-                new IntakeEventRequest(10L, 1, OffsetDateTime.parse("2026-05-04T08:00:00Z"), null, IntakeStatus.MISSED));
+        var response = deviceInternalService.ingestIntakeEvent(100L, null, "edge-key",
+                new IntakeEventRequest("intake-dup", 10L, 1, LocalDateTime.parse("2026-05-04T08:00:00"), null,
+                        IntakeStatus.MISSED, IntakeSource.PHYSICAL_BUTTON, 15));
 
-        verify(intakeRecordRepository).save(existing);
-        assertThat(existing.getStatus()).isEqualTo(IntakeStatus.MISSED);
+        assertThat(response.eventId()).isEqualTo("intake-dup");
     }
 
     @Test
     void stockEventRejectsNegativeStock() {
-        assertThatThrownBy(() -> deviceInternalService.ingestStockEvent(100L, "device-key", null,
-                new StockEventRequest(1, -1, OffsetDateTime.parse("2026-05-04T08:00:00Z"))))
+        when(stockEventRepository.findByDeviceIdAndEventId(100L, "stock-1")).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> deviceInternalService.ingestStockEvent(100L, null, "edge-key",
+                new StockEventRequest("stock-1", 1, -1, LocalDateTime.parse("2026-05-04T08:00:00"), "INTAKE_CONFIRMED")))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("remainingPills cannot be negative");
     }
 
     @Test
     void heartbeatIsStoredWithDeviceStatus() {
-        deviceInternalService.ingestHeartbeat(100L, "device-key", null,
-                new HeartbeatRequest(
-                        OffsetDateTime.parse("2026-05-04T08:00:00Z"),
-                        OffsetDateTime.parse("2026-05-04T08:00:00Z"),
-                        true,
-                        "ONLINE"));
+        when(heartbeatRepository.findByDeviceIdAndEventId(100L, "hb-1")).thenReturn(Optional.empty());
+        when(heartbeatRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        deviceInternalService.ingestHeartbeat(100L, null, "edge-key",
+                new HeartbeatRequest("hb-1", LocalDateTime.parse("2026-05-04T08:00:00"), true, true, true, true, true, true, true, 15,
+                        180000L, -55, "ONLINE", "1.0.0"));
 
         ArgumentCaptor<Device> captor = ArgumentCaptor.forClass(Device.class);
         verify(deviceRepository).save(captor.capture());
