@@ -10,5 +10,8 @@ public interface DeviceRepository extends JpaRepository<Device, Long> {
     boolean existsByOwner(User owner);
     java.util.List<Device> findByOwnerIdOrderByCreatedAtAsc(Long ownerId);
     Optional<Device> findByIdAndOwnerId(Long id, Long ownerId);
+    Optional<Device> findByHardwareDeviceIdAndOwnerId(Long hardwareDeviceId, Long ownerId);
     Optional<Device> findByIdAndDeviceKey(Long id, String deviceKey);
+    Optional<Device> findByHardwareDeviceId(Long hardwareDeviceId);
+    Optional<Device> findByIdOrHardwareDeviceId(Long id, Long hardwareDeviceId);
 }

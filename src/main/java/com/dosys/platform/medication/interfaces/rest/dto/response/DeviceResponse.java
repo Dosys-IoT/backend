@@ -4,6 +4,7 @@ import java.time.OffsetDateTime;
 
 public record DeviceResponse(
         Long id,
+        Long hardwareDeviceId,
         String deviceKey,
         String name,
         Integer configVersion,

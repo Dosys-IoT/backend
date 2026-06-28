@@ -42,6 +42,9 @@ public class Device {
     @Column(name = "device_key", nullable = false, unique = true, length = 120)
     private String deviceKey;
 
+    @Column(name = "hardware_device_id", unique = true)
+    private Long hardwareDeviceId;
+
     @Column(name = "last_seen_at")
     private OffsetDateTime lastSeenAt;
 
@@ -116,6 +119,8 @@ public class Device {
     public void setTemperatureThreshold(Double temperatureThreshold) { this.temperatureThreshold = temperatureThreshold; }
     public String getDeviceKey() { return deviceKey; }
     public void setDeviceKey(String deviceKey) { this.deviceKey = deviceKey; }
+    public Long getHardwareDeviceId() { return hardwareDeviceId; }
+    public void setHardwareDeviceId(Long hardwareDeviceId) { this.hardwareDeviceId = hardwareDeviceId; }
     public OffsetDateTime getLastSeenAt() { return lastSeenAt; }
     public void setLastSeenAt(OffsetDateTime lastSeenAt) { this.lastSeenAt = lastSeenAt; }
     public OffsetDateTime getLastKnownRtcTime() { return lastKnownRtcTime; }

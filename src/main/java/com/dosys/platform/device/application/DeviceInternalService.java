@@ -94,7 +94,7 @@ public class DeviceInternalService {
             if (!edgeServiceKey.equals(serviceKey)) {
                 throw new ForbiddenException("Invalid edge service key");
             }
-            Device device = deviceRepository.findById(deviceId).orElse(null);
+            Device device = findDeviceById(deviceId).orElse(null);
             if (device == null) {
                 return buildDefaultRuntimeConfig(deviceId);
             }
@@ -107,21 +107,21 @@ public class DeviceInternalService {
 
     private RuntimeConfigResponse buildRuntimeConfig(Long deviceId, Device device) {
         Map<Integer, MedicationContainer> containersByNumber = new LinkedHashMap<>();
-        containerRepository.findByDeviceIdOrderByContainerNumberAsc(deviceId)
+        containerRepository.findByDeviceIdOrderByContainerNumberAsc(device.getId())
                 .forEach(container -> containersByNumber.put(container.getContainerNumber(), container));
 
         List<RuntimeConfigResponse.RuntimeContainer> runtimeContainers = java.util.stream.IntStream.rangeClosed(1, DEFAULT_CONTAINER_COUNT)
                 .mapToObj(containerNumber -> toRuntimeContainer(containersByNumber.get(containerNumber), containerNumber))
                 .toList();
 
-        List<RuntimeConfigResponse.RuntimeSchedule> schedules = scheduleRepository.findByDeviceIdOrderByTimeAsc(deviceId)
+        List<RuntimeConfigResponse.RuntimeSchedule> schedules = scheduleRepository.findByDeviceIdOrderByTimeAsc(device.getId())
                 .stream()
                 .filter(schedule -> Boolean.TRUE.equals(schedule.getIsActive()))
                 .map(this::toRuntimeSchedule)
                 .toList();
 
         return new RuntimeConfigResponse(
-                String.valueOf(device.getId()),
+                String.valueOf(deviceId),
                 safeInteger(device.getConfigVersion(), 1),
                 OffsetDateTime.now(UTC).toString(),
                 DEVICE_TIMEZONE.getId(),
@@ -161,7 +161,7 @@ public class DeviceInternalService {
     public EnvironmentReadingResponse ingestEnvironmentReading(Long deviceId, String deviceKey, String serviceKey, EnvironmentReadingRequest request) {
         Device device = authorize(deviceId, deviceKey, serviceKey);
 
-        Optional<EnvironmentReading> existing = environmentReadingRepository.findByDeviceIdAndEventId(deviceId, request.eventId());
+        Optional<EnvironmentReading> existing = environmentReadingRepository.findByDeviceIdAndEventId(device.getId(), request.eventId());
         if (existing.isPresent()) {
             return toEnvironmentResponse(existing.get());
         }
@@ -183,7 +183,7 @@ public class DeviceInternalService {
     public HeartbeatResponse ingestHeartbeat(Long deviceId, String deviceKey, String serviceKey, HeartbeatRequest request) {
         Device device = authorize(deviceId, deviceKey, serviceKey);
 
-        Optional<DeviceHeartbeat> existing = heartbeatRepository.findByDeviceIdAndEventId(deviceId, request.eventId());
+        Optional<DeviceHeartbeat> existing = heartbeatRepository.findByDeviceIdAndEventId(device.getId(), request.eventId());
         if (existing.isPresent()) {
             return toHeartbeatResponse(existing.get());
         }
@@ -231,12 +231,12 @@ public class DeviceInternalService {
     public IntakeEventResponse ingestIntakeEvent(Long deviceId, String deviceKey, String serviceKey, IntakeEventRequest request) {
         Device device = authorize(deviceId, deviceKey, serviceKey);
 
-        Optional<IntakeRecord> existing = intakeRecordRepository.findByDeviceIdAndEventId(deviceId, request.eventId());
+        Optional<IntakeRecord> existing = intakeRecordRepository.findByDeviceIdAndEventId(device.getId(), request.eventId());
         if (existing.isPresent()) {
             return toIntakeResponse(existing.get());
         }
 
-        MedicationSchedule schedule = scheduleRepository.findByIdAndDeviceId(request.scheduleId(), deviceId)
+        MedicationSchedule schedule = scheduleRepository.findByIdAndDeviceId(request.scheduleId(), device.getId())
                 .orElseThrow(() -> new ResourceNotFoundException("Schedule not found for this device"));
 
         if (!schedule.getContainer().getContainerNumber().equals(request.containerNumber())) {
@@ -262,7 +262,7 @@ public class DeviceInternalService {
     public StockEventResponse ingestStockEvent(Long deviceId, String deviceKey, String serviceKey, StockEventRequest request) {
         Device device = authorize(deviceId, deviceKey, serviceKey);
 
-        Optional<DeviceStockEvent> existing = stockEventRepository.findByDeviceIdAndEventId(deviceId, request.eventId());
+        Optional<DeviceStockEvent> existing = stockEventRepository.findByDeviceIdAndEventId(device.getId(), request.eventId());
         if (existing.isPresent()) {
             return toStockResponse(existing.get());
         }
@@ -274,7 +274,7 @@ public class DeviceInternalService {
             throw new IllegalArgumentException("remainingPills cannot be negative");
         }
 
-        MedicationContainer container = containerRepository.findByDeviceIdAndContainerNumber(deviceId, request.containerNumber())
+        MedicationContainer container = containerRepository.findByDeviceIdAndContainerNumber(device.getId(), request.containerNumber())
                 .orElseThrow(() -> new ResourceNotFoundException("Container not found"));
 
         container.setRemainingPills(request.remainingPills());
@@ -314,7 +314,7 @@ public class DeviceInternalService {
                         .sorted(Comparator.comparingInt(java.time.DayOfWeek::getValue))
                         .map(this::toShortDayCode)
                         .toList(),
-                schedule.getContainer().getContainerNumber(),
+                1,
                 CONFIRMATION_WINDOW_SECONDS
         );
     }
@@ -332,7 +332,7 @@ public class DeviceInternalService {
     private EnvironmentReadingResponse toEnvironmentResponse(EnvironmentReading reading) {
         return new EnvironmentReadingResponse(
                 reading.getEventId(),
-                String.valueOf(reading.getDevice().getId()),
+                String.valueOf(displayDeviceId(reading.getDevice())),
                 reading.getTemperature(),
                 reading.getHumidity(),
                 reading.getRecordedAt().toString(),
@@ -344,7 +344,7 @@ public class DeviceInternalService {
     private HeartbeatResponse toHeartbeatResponse(DeviceHeartbeat heartbeat) {
         return new HeartbeatResponse(
                 heartbeat.getEventId(),
-                String.valueOf(heartbeat.getDevice().getId()),
+                String.valueOf(displayDeviceId(heartbeat.getDevice())),
                 heartbeat.getDeviceStatus(),
                 heartbeat.getRecordedAt().toString()
         );
@@ -353,7 +353,7 @@ public class DeviceInternalService {
     private IntakeEventResponse toIntakeResponse(IntakeRecord record) {
         return new IntakeEventResponse(
                 record.getEventId(),
-                String.valueOf(record.getDevice().getId()),
+                String.valueOf(displayDeviceId(record.getDevice())),
                 String.valueOf(record.getScheduleId()),
                 record.getContainerNumber(),
                 record.getScheduledAt().toString(),
@@ -367,7 +367,7 @@ public class DeviceInternalService {
     private StockEventResponse toStockResponse(DeviceStockEvent stockEvent) {
         return new StockEventResponse(
                 stockEvent.getEventId(),
-                String.valueOf(stockEvent.getDevice().getId()),
+                String.valueOf(displayDeviceId(stockEvent.getDevice())),
                 stockEvent.getContainerNumber(),
                 stockEvent.getRemainingPills(),
                 stockEvent.getReportedAt().toString(),
@@ -392,7 +392,7 @@ public class DeviceInternalService {
     }
 
     private Device authorize(Long deviceId, String deviceKey, String serviceKey) {
-        Device device = deviceRepository.findById(deviceId)
+        Device device = findDeviceById(deviceId)
                 .orElseThrow(() -> new ResourceNotFoundException("Device not found"));
 
         boolean hasServiceKey = serviceKey != null && !serviceKey.isBlank();
@@ -413,5 +413,14 @@ public class DeviceInternalService {
             throw new ForbiddenException("Invalid device key");
         }
         return device;
+    }
+
+    private java.util.Optional<Device> findDeviceById(Long deviceId) {
+        return deviceRepository.findById(deviceId)
+                .or(() -> deviceRepository.findByHardwareDeviceId(deviceId));
+    }
+
+    private Long displayDeviceId(Device device) {
+        return device.getHardwareDeviceId() != null ? device.getHardwareDeviceId() : device.getId();
     }
 }

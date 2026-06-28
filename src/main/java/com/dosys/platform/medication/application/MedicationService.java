@@ -13,6 +13,7 @@ import com.dosys.platform.medication.infrastructure.IntakeRecordRepository;
 import com.dosys.platform.medication.infrastructure.MedicationContainerRepository;
 import com.dosys.platform.medication.infrastructure.MedicationScheduleRepository;
 import com.dosys.platform.medication.interfaces.rest.dto.request.CreateDeviceRequest;
+import com.dosys.platform.medication.interfaces.rest.dto.request.LinkPhysicalDeviceRequest;
 import com.dosys.platform.medication.interfaces.rest.dto.request.UpsertContainerRequest;
 import com.dosys.platform.medication.interfaces.rest.dto.request.UpsertScheduleRequest;
 import com.dosys.platform.medication.interfaces.rest.dto.response.AdherenceCalendarResponse;
@@ -21,7 +22,9 @@ import com.dosys.platform.medication.interfaces.rest.dto.response.DeviceResponse
 import com.dosys.platform.medication.interfaces.rest.dto.response.DeviceStatusResponse;
 import com.dosys.platform.medication.interfaces.rest.dto.response.EdgeCredentialsResponse;
 import com.dosys.platform.medication.interfaces.rest.dto.response.EnvironmentReadingResponse;
+import com.dosys.platform.medication.interfaces.rest.dto.response.LinkPhysicalDeviceResponse;
 import com.dosys.platform.medication.interfaces.rest.dto.response.ScheduleResponse;
+import com.dosys.platform.shared.exception.DuplicateResourceException;
 import com.dosys.platform.shared.exception.ResourceNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -76,22 +79,30 @@ public class MedicationService {
         device.setHumidityThreshold(DEFAULT_HUMIDITY_THRESHOLD);
         device.setTemperatureThreshold(DEFAULT_TEMPERATURE_THRESHOLD);
         device.setDeviceKey(UUID.randomUUID().toString());
+        device.setHardwareDeviceId(null);
         Device savedDevice = deviceRepository.save(device);
-
-        List<MedicationContainer> containers = new ArrayList<>();
-        for (int i = 1; i <= CONTAINER_COUNT; i++) {
-            MedicationContainer container = new MedicationContainer();
-            container.setDevice(savedDevice);
-            container.setContainerNumber(i);
-            container.setMedicationName(null);
-            container.setDosageLabel(null);
-            container.setRemainingPills(0);
-            container.setIsEnabled(false);
-            containers.add(container);
-        }
-        containerRepository.saveAll(containers);
+        ensureDefaultContainers(savedDevice);
 
         return toDeviceResponse(savedDevice);
+    }
+
+    @Transactional
+    public LinkPhysicalDeviceResponse linkPhysicalDevice(String userEmail, LinkPhysicalDeviceRequest request) {
+        User owner = getUserByEmail(userEmail);
+        Long hardwareDeviceId = parseDeviceId(request.deviceId());
+
+        Device linkedDevice = findDeviceByHardwareOrId(hardwareDeviceId)
+                .map(existing -> reconcileLinkedDevice(existing, owner, hardwareDeviceId, request))
+                .orElseGet(() -> createLinkedDevice(owner, hardwareDeviceId, request));
+
+        ensureDefaultContainers(linkedDevice);
+        return new LinkPhysicalDeviceResponse(
+                String.valueOf(displayDeviceId(linkedDevice)),
+                linkedDevice.getName(),
+                Boolean.TRUE,
+                "LINKED",
+                linkedDevice.getHardwareDeviceId()
+        );
     }
 
     @Transactional(readOnly = true)
@@ -116,7 +127,7 @@ public class MedicationService {
         }
 
         Device device = getOwnedDevice(userEmail, deviceId);
-        MedicationContainer container = containerRepository.findByDeviceIdAndContainerNumber(deviceId, containerNumber)
+        MedicationContainer container = containerRepository.findByDeviceIdAndContainerNumber(device.getId(), containerNumber)
                 .orElseThrow(() -> new ResourceNotFoundException("Container not found"));
 
         boolean changed = !Objects.equals(normalize(container.getMedicationName()), normalize(request.medicationName()))
@@ -147,7 +158,7 @@ public class MedicationService {
     @Transactional
     public ScheduleResponse createSchedule(String userEmail, Long deviceId, UpsertScheduleRequest request) {
         Device device = getOwnedDevice(userEmail, deviceId);
-        MedicationContainer container = getEnabledContainer(deviceId, request.containerNumber());
+        MedicationContainer container = getEnabledContainer(device.getId(), request.containerNumber());
 
         MedicationSchedule schedule = new MedicationSchedule();
         schedule.setDevice(device);
@@ -164,10 +175,10 @@ public class MedicationService {
     @Transactional
     public ScheduleResponse updateSchedule(String userEmail, Long deviceId, Long scheduleId, UpsertScheduleRequest request) {
         Device device = getOwnedDevice(userEmail, deviceId);
-        MedicationSchedule schedule = scheduleRepository.findByIdAndDeviceId(scheduleId, deviceId)
+        MedicationSchedule schedule = scheduleRepository.findByIdAndDeviceId(scheduleId, device.getId())
                 .orElseThrow(() -> new ResourceNotFoundException("Schedule not found"));
 
-        MedicationContainer container = getEnabledContainer(deviceId, request.containerNumber());
+        MedicationContainer container = getEnabledContainer(device.getId(), request.containerNumber());
 
         boolean changed = !Objects.equals(schedule.getContainer().getId(), container.getId())
                 || !Objects.equals(schedule.getTime(), request.time())
@@ -190,7 +201,7 @@ public class MedicationService {
     @Transactional
     public void deleteSchedule(String userEmail, Long deviceId, Long scheduleId) {
         Device device = getOwnedDevice(userEmail, deviceId);
-        MedicationSchedule schedule = scheduleRepository.findByIdAndDeviceId(scheduleId, deviceId)
+        MedicationSchedule schedule = scheduleRepository.findByIdAndDeviceId(scheduleId, device.getId())
                 .orElseThrow(() -> new ResourceNotFoundException("Schedule not found"));
 
         scheduleRepository.delete(schedule);
@@ -199,7 +210,7 @@ public class MedicationService {
 
     @Transactional(readOnly = true)
     public AdherenceCalendarResponse getAdherenceCalendar(String userEmail, Long deviceId, String monthValue) {
-        getOwnedDevice(userEmail, deviceId);
+        Device device = getOwnedDevice(userEmail, deviceId);
         YearMonth month;
         try {
             month = YearMonth.parse(monthValue);
@@ -210,7 +221,7 @@ public class MedicationService {
         OffsetDateTime from = month.atDay(1).atStartOfDay().atOffset(ZoneOffset.UTC);
         OffsetDateTime to = month.atEndOfMonth().plusDays(1).atStartOfDay().atOffset(ZoneOffset.UTC).minusNanos(1);
 
-        List<IntakeRecord> records = intakeRecordRepository.findByDeviceIdAndScheduledAtBetweenOrderByScheduledAtAsc(deviceId, from, to);
+        List<IntakeRecord> records = intakeRecordRepository.findByDeviceIdAndScheduledAtBetweenOrderByScheduledAtAsc(device.getId(), from, to);
 
         Map<LocalDate, List<AdherenceCalendarResponse.Item>> grouped = new LinkedHashMap<>();
         for (IntakeRecord record : records) {
@@ -234,8 +245,8 @@ public class MedicationService {
 
     @Transactional(readOnly = true)
     public EnvironmentReadingResponse getLatestEnvironment(String userEmail, Long deviceId) {
-        getOwnedDevice(userEmail, deviceId);
-        return environmentReadingRepository.findFirstByDeviceIdOrderByRecordedAtDesc(deviceId)
+        Device device = getOwnedDevice(userEmail, deviceId);
+        return environmentReadingRepository.findFirstByDeviceIdOrderByRecordedAtDesc(device.getId())
                 .map(this::toEnvironmentResponse)
                 .orElse(null);
     }
@@ -245,22 +256,22 @@ public class MedicationService {
         if (from.isAfter(to)) {
             throw new IllegalArgumentException("from cannot be after to");
         }
-        getOwnedDevice(userEmail, deviceId);
-        return environmentReadingRepository.findByDeviceIdAndRecordedAtBetweenOrderByRecordedAtAsc(deviceId, from, to)
+        Device device = getOwnedDevice(userEmail, deviceId);
+        return environmentReadingRepository.findByDeviceIdAndRecordedAtBetweenOrderByRecordedAtAsc(device.getId(), from, to)
                 .stream().map(this::toEnvironmentResponse).toList();
     }
 
     @Transactional(readOnly = true)
     public EdgeCredentialsResponse getEdgeCredentials(String userEmail, Long deviceId) {
         Device device = getOwnedDevice(userEmail, deviceId);
-        return new EdgeCredentialsResponse(device.getId(), device.getDeviceKey());
+        return new EdgeCredentialsResponse(displayDeviceId(device), device.getDeviceKey());
     }
 
     @Transactional(readOnly = true)
     public DeviceStatusResponse getDeviceStatus(String userEmail, Long deviceId) {
         Device device = getOwnedDevice(userEmail, deviceId);
         return new DeviceStatusResponse(
-                String.valueOf(device.getId()),
+                String.valueOf(displayDeviceId(device)),
                 device.getLastKnownStatus() == null ? "OFFLINE" : device.getLastKnownStatus(),
                 device.getLastSeenAt(),
                 device.getLastKnownRtcOk(),
@@ -297,8 +308,66 @@ public class MedicationService {
 
     private Device getOwnedDevice(String userEmail, Long deviceId) {
         User user = getUserByEmail(userEmail);
-        return deviceRepository.findByIdAndOwnerId(deviceId, user.getId())
+        return findOwnedDevice(user.getId(), deviceId)
                 .orElseThrow(() -> new ResourceNotFoundException("Device not found"));
+    }
+
+    private java.util.Optional<Device> findOwnedDevice(Long userId, Long deviceId) {
+        return deviceRepository.findByIdAndOwnerId(deviceId, userId)
+                .or(() -> deviceRepository.findByHardwareDeviceIdAndOwnerId(deviceId, userId));
+    }
+
+    private java.util.Optional<Device> findDeviceByHardwareOrId(Long deviceId) {
+        return deviceRepository.findById(deviceId).or(() -> deviceRepository.findByHardwareDeviceId(deviceId));
+    }
+
+    private Device reconcileLinkedDevice(Device device, User owner, Long hardwareDeviceId, LinkPhysicalDeviceRequest request) {
+        if (!device.getOwner().getId().equals(owner.getId())) {
+            throw new DuplicateResourceException("DEVICE_ALREADY_LINKED");
+        }
+        if (request.deviceName() != null && !request.deviceName().isBlank()) {
+            device.setName(request.deviceName().trim());
+        }
+        if (!hardwareDeviceId.equals(device.getHardwareDeviceId())) {
+            device.setHardwareDeviceId(hardwareDeviceId);
+        }
+        if (request.deviceKey() != null && !request.deviceKey().isBlank()) {
+            device.setDeviceKey(request.deviceKey());
+        } else if (device.getDeviceKey() == null) {
+            device.setDeviceKey("");
+        }
+        return deviceRepository.save(device);
+    }
+
+    private Device createLinkedDevice(User owner, Long hardwareDeviceId, LinkPhysicalDeviceRequest request) {
+        Device device = new Device();
+        device.setOwner(owner);
+        device.setName(resolveDeviceName(request.deviceName()));
+        device.setConfigVersion(1);
+        device.setHumidityThreshold(DEFAULT_HUMIDITY_THRESHOLD);
+        device.setTemperatureThreshold(DEFAULT_TEMPERATURE_THRESHOLD);
+        device.setHardwareDeviceId(hardwareDeviceId);
+        device.setDeviceKey(request.deviceKey() == null ? "" : request.deviceKey());
+        return deviceRepository.save(device);
+    }
+
+    private void ensureDefaultContainers(Device device) {
+        if (containerRepository.findByDeviceIdOrderByContainerNumberAsc(device.getId()).size() == CONTAINER_COUNT) {
+            return;
+        }
+
+        List<MedicationContainer> containers = new ArrayList<>();
+        for (int i = 1; i <= CONTAINER_COUNT; i++) {
+            MedicationContainer container = new MedicationContainer();
+            container.setDevice(device);
+            container.setContainerNumber(i);
+            container.setMedicationName(null);
+            container.setDosageLabel(null);
+            container.setRemainingPills(0);
+            container.setIsEnabled(false);
+            containers.add(container);
+        }
+        containerRepository.saveAll(containers);
     }
 
     private User getUserByEmail(String email) {
@@ -311,7 +380,7 @@ public class MedicationService {
     }
 
     private DeviceResponse toDeviceResponse(Device device) {
-        return new DeviceResponse(device.getId(), device.getDeviceKey(), device.getName(), device.getConfigVersion(), device.getHumidityThreshold(),
+        return new DeviceResponse(device.getId(), device.getHardwareDeviceId(), device.getDeviceKey(), device.getName(), device.getConfigVersion(), device.getHumidityThreshold(),
                 device.getTemperatureThreshold(), device.getLastSeenAt(), device.getCreatedAt(), device.getUpdatedAt());
     }
 
@@ -336,5 +405,17 @@ public class MedicationService {
     private EnvironmentReadingResponse toEnvironmentResponse(EnvironmentReading reading) {
         return new EnvironmentReadingResponse(reading.getId(), reading.getTemperature(), reading.getHumidity(),
                 reading.getRecordedAt(), reading.getRiskStatus());
+    }
+
+    private Long displayDeviceId(Device device) {
+        return device.getHardwareDeviceId() != null ? device.getHardwareDeviceId() : device.getId();
+    }
+
+    private Long parseDeviceId(String deviceId) {
+        try {
+            return Long.parseLong(deviceId.trim());
+        } catch (Exception ex) {
+            throw new IllegalArgumentException("deviceId must be a numeric value");
+        }
     }
 }

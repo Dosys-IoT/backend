@@ -5,6 +5,8 @@ import com.dosys.platform.medication.infrastructure.DeviceRepository;
 import com.dosys.platform.medication.infrastructure.DeviceStockEventRepository;
 import com.dosys.platform.medication.infrastructure.EnvironmentReadingRepository;
 import com.dosys.platform.medication.infrastructure.IntakeRecordRepository;
+import com.dosys.platform.medication.infrastructure.MedicationContainerRepository;
+import com.dosys.platform.medication.infrastructure.MedicationScheduleRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -37,9 +39,12 @@ class DeviceInternalIntegrationTest {
     @Autowired private DeviceHeartbeatRepository heartbeatRepository;
     @Autowired private IntakeRecordRepository intakeRecordRepository;
     @Autowired private DeviceStockEventRepository stockEventRepository;
+    @Autowired private MedicationContainerRepository containerRepository;
+    @Autowired private MedicationScheduleRepository scheduleRepository;
 
     private String token;
     private long deviceId;
+    private long internalDeviceId;
     private long scheduleId;
 
     @BeforeEach
@@ -48,6 +53,9 @@ class DeviceInternalIntegrationTest {
         heartbeatRepository.deleteAll();
         intakeRecordRepository.deleteAll();
         environmentReadingRepository.deleteAll();
+        scheduleRepository.deleteAll();
+        containerRepository.deleteAll();
+        deviceRepository.deleteAll();
 
         String email = "device-internal-" + UUID.randomUUID() + "@test.com";
         String password = "StrongPass123";
@@ -75,13 +83,20 @@ class DeviceInternalIntegrationTest {
                 .andReturn().getResponse().getContentAsString();
         token = objectMapper.readTree(loginResponse).get("accessToken").asText();
 
-        String createdDevice = mockMvc.perform(post("/api/v1/medication/devices")
+        String linkedDevice = mockMvc.perform(post("/api/v1/medication/devices/link")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"Dosys Device\"}"))
-                .andExpect(status().isCreated())
+                .content("""
+                                {
+                                  "deviceId":"1",
+                                  "deviceName":"Dosys Device",
+                                  "deviceKey":""
+                                }
+                                """))
+                .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
-        deviceId = objectMapper.readTree(createdDevice).get("id").asLong();
+        deviceId = objectMapper.readTree(linkedDevice).get("deviceId").asLong();
+        internalDeviceId = deviceRepository.findByHardwareDeviceId(deviceId).orElseThrow().getId();
 
         mockMvc.perform(put("/api/v1/medication/devices/{deviceId}/containers/{containerNumber}", deviceId, 1)
                 .header("Authorization", "Bearer " + token)
@@ -149,7 +164,7 @@ class DeviceInternalIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.riskStatus").value("NORMAL"));
 
-        Assertions.assertTrue(environmentReadingRepository.findByDeviceIdAndEventId(deviceId, "env-1").isPresent());
+        Assertions.assertTrue(environmentReadingRepository.findByDeviceIdAndEventId(internalDeviceId, "env-1").isPresent());
     }
 
     @Test
@@ -178,8 +193,8 @@ class DeviceInternalIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("ONLINE"));
 
-        Assertions.assertEquals("ONLINE", deviceRepository.findById(deviceId).orElseThrow().getLastKnownStatus());
-        Assertions.assertTrue(heartbeatRepository.findByDeviceIdAndEventId(deviceId, "hb-1").isPresent());
+        Assertions.assertEquals("ONLINE", deviceRepository.findByHardwareDeviceId(deviceId).orElseThrow().getLastKnownStatus());
+        Assertions.assertTrue(heartbeatRepository.findByDeviceIdAndEventId(internalDeviceId, "hb-1").isPresent());
     }
 
     @Test
@@ -216,7 +231,7 @@ class DeviceInternalIntegrationTest {
                 .andExpect(jsonPath("$.source").value("PHYSICAL_BUTTON"))
                 .andExpect(jsonPath("$.buttonPin").value(15));
 
-        Assertions.assertTrue(intakeRecordRepository.findByDeviceIdAndEventId(deviceId, "intake-1").isPresent());
+        Assertions.assertTrue(intakeRecordRepository.findByDeviceIdAndEventId(internalDeviceId, "intake-1").isPresent());
     }
 
     @Test
@@ -246,7 +261,7 @@ class DeviceInternalIntegrationTest {
                         .content(body))
                 .andExpect(status().isOk());
 
-        Assertions.assertTrue(intakeRecordRepository.findByDeviceIdAndEventId(deviceId, "intake-dup").isPresent());
+        Assertions.assertTrue(intakeRecordRepository.findByDeviceIdAndEventId(internalDeviceId, "intake-dup").isPresent());
     }
 
     @Test

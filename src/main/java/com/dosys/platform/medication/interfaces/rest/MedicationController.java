@@ -2,6 +2,7 @@ package com.dosys.platform.medication.interfaces.rest;
 
 import com.dosys.platform.medication.application.MedicationService;
 import com.dosys.platform.medication.interfaces.rest.dto.request.CreateDeviceRequest;
+import com.dosys.platform.medication.interfaces.rest.dto.request.LinkPhysicalDeviceRequest;
 import com.dosys.platform.medication.interfaces.rest.dto.request.UpsertContainerRequest;
 import com.dosys.platform.medication.interfaces.rest.dto.request.UpsertScheduleRequest;
 import com.dosys.platform.medication.interfaces.rest.dto.response.AdherenceCalendarResponse;
@@ -10,6 +11,7 @@ import com.dosys.platform.medication.interfaces.rest.dto.response.DeviceResponse
 import com.dosys.platform.medication.interfaces.rest.dto.response.DeviceStatusResponse;
 import com.dosys.platform.medication.interfaces.rest.dto.response.EdgeCredentialsResponse;
 import com.dosys.platform.medication.interfaces.rest.dto.response.EnvironmentReadingResponse;
+import com.dosys.platform.medication.interfaces.rest.dto.response.LinkPhysicalDeviceResponse;
 import com.dosys.platform.medication.interfaces.rest.dto.response.ScheduleResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -47,6 +49,13 @@ public class MedicationController {
     @Operation(summary = "Create device for authenticated user")
     public DeviceResponse createDevice(Principal principal, @Valid @RequestBody CreateDeviceRequest request) {
         return medicationService.createDevice(principal.getName(), request);
+    }
+
+    @PostMapping("/devices/link")
+    @Operation(summary = "Link a physical device to the authenticated user")
+    public LinkPhysicalDeviceResponse linkPhysicalDevice(Principal principal,
+                                                         @Valid @RequestBody LinkPhysicalDeviceRequest request) {
+        return medicationService.linkPhysicalDevice(principal.getName(), request);
     }
 
     @GetMapping("/devices")

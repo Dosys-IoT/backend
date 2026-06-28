@@ -2,6 +2,13 @@ package com.dosys.platform.medication;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.dosys.platform.medication.infrastructure.DeviceHeartbeatRepository;
+import com.dosys.platform.medication.infrastructure.DeviceRepository;
+import com.dosys.platform.medication.infrastructure.DeviceStockEventRepository;
+import com.dosys.platform.medication.infrastructure.EnvironmentReadingRepository;
+import com.dosys.platform.medication.infrastructure.IntakeRecordRepository;
+import com.dosys.platform.medication.infrastructure.MedicationContainerRepository;
+import com.dosys.platform.medication.infrastructure.MedicationScheduleRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,11 +38,33 @@ class MedicationIntegrationTest {
 
     @Autowired
     private ObjectMapper objectMapper;
+    @Autowired
+    private DeviceRepository deviceRepository;
+    @Autowired
+    private MedicationContainerRepository containerRepository;
+    @Autowired
+    private MedicationScheduleRepository scheduleRepository;
+    @Autowired
+    private IntakeRecordRepository intakeRecordRepository;
+    @Autowired
+    private EnvironmentReadingRepository environmentReadingRepository;
+    @Autowired
+    private DeviceHeartbeatRepository heartbeatRepository;
+    @Autowired
+    private DeviceStockEventRepository stockEventRepository;
 
     private String token;
 
     @BeforeEach
     void setUp() throws Exception {
+        stockEventRepository.deleteAll();
+        heartbeatRepository.deleteAll();
+        intakeRecordRepository.deleteAll();
+        environmentReadingRepository.deleteAll();
+        scheduleRepository.deleteAll();
+        containerRepository.deleteAll();
+        deviceRepository.deleteAll();
+
         String email = "medication-" + UUID.randomUUID() + "@test.com";
         String password = "StrongPass123";
 
@@ -75,6 +104,144 @@ class MedicationIntegrationTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.configVersion").value(1))
                 .andExpect(jsonPath("$.deviceKey").isNotEmpty());
+    }
+
+    @Test
+    void linkExistingPhysicalDeviceToAuthenticatedUser() throws Exception {
+        mockMvc.perform(post("/api/v1/medication/devices/link")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "deviceId":"1",
+                                  "deviceName":"device1",
+                                  "deviceKey":""
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.deviceId").value("1"))
+                .andExpect(jsonPath("$.status").value("LINKED"))
+                .andExpect(jsonPath("$.linked").value(true));
+
+        mockMvc.perform(get("/api/v1/medication/devices")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].hardwareDeviceId").value(1))
+                .andExpect(jsonPath("$[0].name").value("device1"));
+    }
+
+    @Test
+    void linkDeviceIsIdempotentForSameUser() throws Exception {
+        String payload = """
+                {
+                  "deviceId":"1",
+                  "deviceName":"device1",
+                  "deviceKey":""
+                }
+                """;
+
+        mockMvc.perform(post("/api/v1/medication/devices/link")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/v1/medication/devices/link")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.deviceId").value("1"))
+                .andExpect(jsonPath("$.linked").value(true));
+    }
+
+    @Test
+    void rejectDeviceLinkedToAnotherUser() throws Exception {
+        String payload = """
+                {
+                  "deviceId":"1",
+                  "deviceName":"device1",
+                  "deviceKey":""
+                }
+                """;
+
+        mockMvc.perform(post("/api/v1/medication/devices/link")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload))
+                .andExpect(status().isOk());
+
+        String anotherToken = registerAndLogin("linked-other-" + System.nanoTime() + "@test.com", "StrongPass123");
+
+        mockMvc.perform(post("/api/v1/medication/devices/link")
+                        .header("Authorization", "Bearer " + anotherToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("DUPLICATE_RESOURCE"));
+    }
+
+    @Test
+    void linkedDeviceCanReadLatestEnvironment() throws Exception {
+        linkPhysicalDevice();
+
+        mockMvc.perform(post("/api/v1/device/internal/{deviceId}/environment-readings", 1L)
+                        .header("X-Edge-Service-Key", "dosys-local-edge-service-key-change-me-2026")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "eventId":"env-linked-1",
+                                  "temperature":26.4,
+                                  "humidity":61.2,
+                                  "recordedAt":"2026-06-27T12:00:00",
+                                  "firmwareVersion":"1.0.0"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.riskStatus").value("NORMAL"));
+
+        mockMvc.perform(get("/api/v1/medication/devices/{deviceId}/environment/latest", 1L)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.temperature").value(26.4))
+                .andExpect(jsonPath("$.humidity").value(61.2));
+    }
+
+    @Test
+    void linkedDeviceCanReadStatus() throws Exception {
+        linkPhysicalDevice();
+
+        mockMvc.perform(post("/api/v1/device/internal/{deviceId}/heartbeats", 1L)
+                        .header("X-Edge-Service-Key", "dosys-local-edge-service-key-change-me-2026")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "eventId":"hb-linked-1",
+                                  "rtcTime":"2026-06-27T12:00:00",
+                                  "wifiConnected":true,
+                                  "mqttConnected":true,
+                                  "rtcOk":true,
+                                  "sht3xOk":true,
+                                  "dfPlayerOk":true,
+                                  "sdCardOk":true,
+                                  "switchOk":true,
+                                  "buttonPin":15,
+                                  "freeHeap":180000,
+                                  "rssi":-55,
+                                  "deviceStatus":"ONLINE",
+                                  "firmwareVersion":"1.0.0"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("ONLINE"));
+
+        mockMvc.perform(get("/api/v1/medication/devices/{deviceId}/status", 1L)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.deviceId").value("1"))
+                .andExpect(jsonPath("$.status").value("ONLINE"))
+                .andExpect(jsonPath("$.buttonPin").value(15));
     }
 
     @Test
@@ -378,6 +545,20 @@ class MedicationIntegrationTest {
 
         JsonNode json = objectMapper.readTree(response);
         return json.get("id").asLong();
+    }
+
+    private void linkPhysicalDevice() throws Exception {
+        mockMvc.perform(post("/api/v1/medication/devices/link")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "deviceId":"1",
+                                  "deviceName":"device1",
+                                  "deviceKey":""
+                                }
+                                """))
+                .andExpect(status().isOk());
     }
 
     private void enableContainer(long deviceId, int containerNumber) throws Exception {
