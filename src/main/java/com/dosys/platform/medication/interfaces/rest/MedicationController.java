@@ -3,9 +3,11 @@ package com.dosys.platform.medication.interfaces.rest;
 import com.dosys.platform.medication.application.MedicationService;
 import com.dosys.platform.medication.interfaces.rest.dto.request.CreateDeviceRequest;
 import com.dosys.platform.medication.interfaces.rest.dto.request.LinkPhysicalDeviceRequest;
+import com.dosys.platform.medication.interfaces.rest.dto.request.UpdateAlarmSettingsRequest;
 import com.dosys.platform.medication.interfaces.rest.dto.request.UpsertContainerRequest;
 import com.dosys.platform.medication.interfaces.rest.dto.request.UpsertScheduleRequest;
 import com.dosys.platform.medication.interfaces.rest.dto.response.AdherenceCalendarResponse;
+import com.dosys.platform.medication.interfaces.rest.dto.response.AlarmSettingsResponse;
 import com.dosys.platform.medication.interfaces.rest.dto.response.ContainerResponse;
 import com.dosys.platform.medication.interfaces.rest.dto.response.DeviceResponse;
 import com.dosys.platform.medication.interfaces.rest.dto.response.DeviceStatusResponse;
@@ -139,6 +141,14 @@ public class MedicationController {
     @Operation(summary = "Get latest device status for frontend")
     public DeviceStatusResponse getDeviceStatus(Principal principal, @PathVariable Long deviceId) {
         return medicationService.getDeviceStatus(principal.getName(), deviceId);
+    }
+
+    @PutMapping("/devices/{deviceId}/alarm-settings")
+    @Operation(summary = "Update device alarm settings")
+    public AlarmSettingsResponse updateAlarmSettings(Principal principal,
+                                                     @PathVariable Long deviceId,
+                                                     @Valid @RequestBody UpdateAlarmSettingsRequest request) {
+        return medicationService.updateAlarmSettings(principal.getName(), deviceId, request);
     }
 
     @GetMapping("/devices/{deviceId}/edge-credentials")

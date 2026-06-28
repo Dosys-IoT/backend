@@ -13,6 +13,9 @@ public record DeviceStatusResponse(
         Boolean switchOk,
         Integer buttonPin,
         Integer rssi,
-        String firmwareVersion
+        String firmwareVersion,
+        String hardwareVersion,
+        Boolean wifiConnected,
+        Boolean mqttConnected
 ) {
 }

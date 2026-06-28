@@ -66,6 +66,9 @@ public class DeviceHeartbeat {
     @Column(name = "firmware_version", length = 60)
     private String firmwareVersion;
 
+    @Column(name = "hardware_version", length = 60)
+    private String hardwareVersion;
+
     @Column(name = "recorded_at", nullable = false)
     private OffsetDateTime recordedAt;
 
@@ -101,6 +104,8 @@ public class DeviceHeartbeat {
     public void setDeviceStatus(String deviceStatus) { this.deviceStatus = deviceStatus; }
     public String getFirmwareVersion() { return firmwareVersion; }
     public void setFirmwareVersion(String firmwareVersion) { this.firmwareVersion = firmwareVersion; }
+    public String getHardwareVersion() { return hardwareVersion; }
+    public void setHardwareVersion(String hardwareVersion) { this.hardwareVersion = hardwareVersion; }
     public OffsetDateTime getRecordedAt() { return recordedAt; }
     public void setRecordedAt(OffsetDateTime recordedAt) { this.recordedAt = recordedAt; }
 }

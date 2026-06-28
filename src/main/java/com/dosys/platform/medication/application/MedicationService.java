@@ -14,9 +14,11 @@ import com.dosys.platform.medication.infrastructure.MedicationContainerRepositor
 import com.dosys.platform.medication.infrastructure.MedicationScheduleRepository;
 import com.dosys.platform.medication.interfaces.rest.dto.request.CreateDeviceRequest;
 import com.dosys.platform.medication.interfaces.rest.dto.request.LinkPhysicalDeviceRequest;
+import com.dosys.platform.medication.interfaces.rest.dto.request.UpdateAlarmSettingsRequest;
 import com.dosys.platform.medication.interfaces.rest.dto.request.UpsertContainerRequest;
 import com.dosys.platform.medication.interfaces.rest.dto.request.UpsertScheduleRequest;
 import com.dosys.platform.medication.interfaces.rest.dto.response.AdherenceCalendarResponse;
+import com.dosys.platform.medication.interfaces.rest.dto.response.AlarmSettingsResponse;
 import com.dosys.platform.medication.interfaces.rest.dto.response.ContainerResponse;
 import com.dosys.platform.medication.interfaces.rest.dto.response.DeviceResponse;
 import com.dosys.platform.medication.interfaces.rest.dto.response.DeviceStatusResponse;
@@ -46,6 +48,11 @@ public class MedicationService {
     private static final int CONTAINER_COUNT = 5;
     private static final double DEFAULT_HUMIDITY_THRESHOLD = 70.0;
     private static final double DEFAULT_TEMPERATURE_THRESHOLD = 30.0;
+    private static final int DEFAULT_ALARM_VOLUME_PERCENT = 80;
+    private static final boolean DEFAULT_QUIET_HOURS_ENABLED = false;
+    private static final String DEFAULT_QUIET_HOURS_START = "21:00";
+    private static final String DEFAULT_QUIET_HOURS_END = "06:00";
+    private static final int DEFAULT_QUIET_HOURS_VOLUME_PERCENT = 50;
 
     private final DeviceRepository deviceRepository;
     private final MedicationContainerRepository containerRepository;
@@ -80,6 +87,7 @@ public class MedicationService {
         device.setTemperatureThreshold(DEFAULT_TEMPERATURE_THRESHOLD);
         device.setDeviceKey(UUID.randomUUID().toString());
         device.setHardwareDeviceId(null);
+        applyDefaultAlarmSettings(device);
         Device savedDevice = deviceRepository.save(device);
         ensureDefaultContainers(savedDevice);
 
@@ -281,8 +289,23 @@ public class MedicationService {
                 device.getLastKnownSwitchOk(),
                 device.getLastKnownButtonPin(),
                 device.getLastKnownRssi(),
-                device.getLastKnownFirmwareVersion()
+                device.getLastKnownFirmwareVersion(),
+                device.getLastKnownHardwareVersion(),
+                device.getLastKnownWifiConnected(),
+                device.getLastKnownMqttConnected()
         );
+    }
+
+    @Transactional
+    public AlarmSettingsResponse updateAlarmSettings(String userEmail, Long deviceId, UpdateAlarmSettingsRequest request) {
+        Device device = getOwnedDevice(userEmail, deviceId);
+        device.setAlarmVolumePercent(request.alarmVolumePercent());
+        device.setQuietHoursEnabled(request.quietHoursEnabled());
+        device.setQuietHoursStart(request.quietHoursStart());
+        device.setQuietHoursEnd(request.quietHoursEnd());
+        device.setQuietHoursVolumePercent(request.quietHoursVolumePercent());
+        incrementConfigVersion(device);
+        return toAlarmSettingsResponse(device);
     }
 
     private MedicationContainer getEnabledContainer(Long deviceId, Integer containerNumber) {
@@ -336,6 +359,7 @@ public class MedicationService {
         } else if (device.getDeviceKey() == null) {
             device.setDeviceKey("");
         }
+        applyDefaultAlarmSettings(device);
         return deviceRepository.save(device);
     }
 
@@ -348,6 +372,7 @@ public class MedicationService {
         device.setTemperatureThreshold(DEFAULT_TEMPERATURE_THRESHOLD);
         device.setHardwareDeviceId(hardwareDeviceId);
         device.setDeviceKey(request.deviceKey() == null ? "" : request.deviceKey());
+        applyDefaultAlarmSettings(device);
         return deviceRepository.save(device);
     }
 
@@ -380,8 +405,34 @@ public class MedicationService {
     }
 
     private DeviceResponse toDeviceResponse(Device device) {
-        return new DeviceResponse(device.getId(), device.getHardwareDeviceId(), device.getDeviceKey(), device.getName(), device.getConfigVersion(), device.getHumidityThreshold(),
-                device.getTemperatureThreshold(), device.getLastSeenAt(), device.getCreatedAt(), device.getUpdatedAt());
+        return new DeviceResponse(
+                device.getId(),
+                device.getHardwareDeviceId(),
+                device.getDeviceKey(),
+                device.getName(),
+                device.getConfigVersion(),
+                device.getHumidityThreshold(),
+                device.getTemperatureThreshold(),
+                defaultInteger(device.getAlarmVolumePercent(), DEFAULT_ALARM_VOLUME_PERCENT),
+                defaultBoolean(device.getQuietHoursEnabled(), DEFAULT_QUIET_HOURS_ENABLED),
+                defaultString(device.getQuietHoursStart(), DEFAULT_QUIET_HOURS_START),
+                defaultString(device.getQuietHoursEnd(), DEFAULT_QUIET_HOURS_END),
+                defaultInteger(device.getQuietHoursVolumePercent(), DEFAULT_QUIET_HOURS_VOLUME_PERCENT),
+                device.getLastSeenAt(),
+                device.getCreatedAt(),
+                device.getUpdatedAt()
+        );
+    }
+
+    private AlarmSettingsResponse toAlarmSettingsResponse(Device device) {
+        return new AlarmSettingsResponse(
+                String.valueOf(displayDeviceId(device)),
+                defaultInteger(device.getAlarmVolumePercent(), DEFAULT_ALARM_VOLUME_PERCENT),
+                defaultBoolean(device.getQuietHoursEnabled(), DEFAULT_QUIET_HOURS_ENABLED),
+                defaultString(device.getQuietHoursStart(), DEFAULT_QUIET_HOURS_START),
+                defaultString(device.getQuietHoursEnd(), DEFAULT_QUIET_HOURS_END),
+                defaultInteger(device.getQuietHoursVolumePercent(), DEFAULT_QUIET_HOURS_VOLUME_PERCENT)
+        );
     }
 
     private String resolveDeviceName(String rawName) {
@@ -390,6 +441,24 @@ public class MedicationService {
             return normalized;
         }
         return "Dosys Device " + System.currentTimeMillis();
+    }
+
+    private void applyDefaultAlarmSettings(Device device) {
+        if (device.getAlarmVolumePercent() == null) {
+            device.setAlarmVolumePercent(DEFAULT_ALARM_VOLUME_PERCENT);
+        }
+        if (device.getQuietHoursEnabled() == null) {
+            device.setQuietHoursEnabled(DEFAULT_QUIET_HOURS_ENABLED);
+        }
+        if (device.getQuietHoursStart() == null || device.getQuietHoursStart().isBlank()) {
+            device.setQuietHoursStart(DEFAULT_QUIET_HOURS_START);
+        }
+        if (device.getQuietHoursEnd() == null || device.getQuietHoursEnd().isBlank()) {
+            device.setQuietHoursEnd(DEFAULT_QUIET_HOURS_END);
+        }
+        if (device.getQuietHoursVolumePercent() == null) {
+            device.setQuietHoursVolumePercent(DEFAULT_QUIET_HOURS_VOLUME_PERCENT);
+        }
     }
 
     private ContainerResponse toContainerResponse(MedicationContainer container) {
@@ -409,6 +478,18 @@ public class MedicationService {
 
     private Long displayDeviceId(Device device) {
         return device.getHardwareDeviceId() != null ? device.getHardwareDeviceId() : device.getId();
+    }
+
+    private Integer defaultInteger(Integer value, int fallback) {
+        return value == null ? fallback : value;
+    }
+
+    private Boolean defaultBoolean(Boolean value, boolean fallback) {
+        return value == null ? fallback : value;
+    }
+
+    private String defaultString(String value, String fallback) {
+        return value == null || value.isBlank() ? fallback : value;
     }
 
     private Long parseDeviceId(String deviceId) {

@@ -10,6 +10,11 @@ public record DeviceResponse(
         Integer configVersion,
         Double humidityThreshold,
         Double temperatureThreshold,
+        Integer alarmVolumePercent,
+        Boolean quietHoursEnabled,
+        String quietHoursStart,
+        String quietHoursEnd,
+        Integer quietHoursVolumePercent,
         OffsetDateTime lastSeenAt,
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt

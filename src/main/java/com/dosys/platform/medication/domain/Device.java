@@ -87,6 +87,24 @@ public class Device {
     @Column(name = "last_known_firmware_version", length = 60)
     private String lastKnownFirmwareVersion;
 
+    @Column(name = "last_known_hardware_version", length = 60)
+    private String lastKnownHardwareVersion;
+
+    @Column(name = "alarm_volume_percent", nullable = false)
+    private Integer alarmVolumePercent;
+
+    @Column(name = "quiet_hours_enabled", nullable = false)
+    private Boolean quietHoursEnabled;
+
+    @Column(name = "quiet_hours_start", nullable = false, length = 5)
+    private String quietHoursStart;
+
+    @Column(name = "quiet_hours_end", nullable = false, length = 5)
+    private String quietHoursEnd;
+
+    @Column(name = "quiet_hours_volume_percent", nullable = false)
+    private Integer quietHoursVolumePercent;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
 
@@ -149,6 +167,18 @@ public class Device {
     public void setLastKnownRssi(Integer lastKnownRssi) { this.lastKnownRssi = lastKnownRssi; }
     public String getLastKnownFirmwareVersion() { return lastKnownFirmwareVersion; }
     public void setLastKnownFirmwareVersion(String lastKnownFirmwareVersion) { this.lastKnownFirmwareVersion = lastKnownFirmwareVersion; }
+    public String getLastKnownHardwareVersion() { return lastKnownHardwareVersion; }
+    public void setLastKnownHardwareVersion(String lastKnownHardwareVersion) { this.lastKnownHardwareVersion = lastKnownHardwareVersion; }
+    public Integer getAlarmVolumePercent() { return alarmVolumePercent; }
+    public void setAlarmVolumePercent(Integer alarmVolumePercent) { this.alarmVolumePercent = alarmVolumePercent; }
+    public Boolean getQuietHoursEnabled() { return quietHoursEnabled; }
+    public void setQuietHoursEnabled(Boolean quietHoursEnabled) { this.quietHoursEnabled = quietHoursEnabled; }
+    public String getQuietHoursStart() { return quietHoursStart; }
+    public void setQuietHoursStart(String quietHoursStart) { this.quietHoursStart = quietHoursStart; }
+    public String getQuietHoursEnd() { return quietHoursEnd; }
+    public void setQuietHoursEnd(String quietHoursEnd) { this.quietHoursEnd = quietHoursEnd; }
+    public Integer getQuietHoursVolumePercent() { return quietHoursVolumePercent; }
+    public void setQuietHoursVolumePercent(Integer quietHoursVolumePercent) { this.quietHoursVolumePercent = quietHoursVolumePercent; }
     public OffsetDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(OffsetDateTime createdAt) { this.createdAt = createdAt; }
     public OffsetDateTime getUpdatedAt() { return updatedAt; }

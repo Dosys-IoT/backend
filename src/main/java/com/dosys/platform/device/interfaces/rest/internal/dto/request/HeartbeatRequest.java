@@ -19,6 +19,7 @@ public record HeartbeatRequest(
         @NotNull Long freeHeap,
         @NotNull Integer rssi,
         @NotBlank String deviceStatus,
-        @NotBlank String firmwareVersion
+        @NotBlank String firmwareVersion,
+        String hardwareVersion
 ) {
 }

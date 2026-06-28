@@ -96,6 +96,7 @@ class DeviceInternalServiceUnitTest {
         assertThat(response.containers()).hasSize(5);
         assertThat(response.schedules()).hasSize(1);
         assertThat(response.environmentThresholds().temperatureWarning()).isEqualTo(28);
+        assertThat(response.alarmSettings().volumePercent()).isEqualTo(80);
     }
 
     @Test
@@ -157,11 +158,12 @@ class DeviceInternalServiceUnitTest {
 
         deviceInternalService.ingestHeartbeat(100L, null, "edge-key",
                 new HeartbeatRequest("hb-1", LocalDateTime.parse("2026-05-04T08:00:00"), true, true, true, true, true, true, true, 15,
-                        180000L, -55, "ONLINE", "1.0.0"));
+                        180000L, -55, "ONLINE", "1.0.0", "esp32-dosys-v1"));
 
         ArgumentCaptor<Device> captor = ArgumentCaptor.forClass(Device.class);
         verify(deviceRepository).save(captor.capture());
         assertThat(captor.getValue().getLastKnownStatus()).isEqualTo("ONLINE");
+        assertThat(captor.getValue().getLastKnownHardwareVersion()).isEqualTo("esp32-dosys-v1");
     }
 
     @Test

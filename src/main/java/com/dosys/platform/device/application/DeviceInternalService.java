@@ -54,6 +54,11 @@ public class DeviceInternalService {
     private static final int HUMIDITY_CRITICAL = 80;
     private static final int CONFIRMATION_WINDOW_SECONDS = 300;
     private static final int DEFAULT_CONTAINER_COUNT = 5;
+    private static final int DEFAULT_ALARM_VOLUME_PERCENT = 80;
+    private static final boolean DEFAULT_QUIET_HOURS_ENABLED = false;
+    private static final String DEFAULT_QUIET_HOURS_START = "21:00";
+    private static final String DEFAULT_QUIET_HOURS_END = "06:00";
+    private static final int DEFAULT_QUIET_HOURS_VOLUME_PERCENT = 50;
 
     private final DeviceRepository deviceRepository;
     private final MedicationContainerRepository containerRepository;
@@ -132,7 +137,8 @@ public class DeviceInternalService {
                         TEMPERATURE_CRITICAL,
                         HUMIDITY_WARNING,
                         HUMIDITY_CRITICAL
-                )
+                ),
+                toAlarmSettings(device)
         );
     }
 
@@ -153,6 +159,13 @@ public class DeviceInternalService {
                         TEMPERATURE_CRITICAL,
                         HUMIDITY_WARNING,
                         HUMIDITY_CRITICAL
+                ),
+                new RuntimeConfigResponse.AlarmSettings(
+                        DEFAULT_ALARM_VOLUME_PERCENT,
+                        DEFAULT_QUIET_HOURS_ENABLED,
+                        DEFAULT_QUIET_HOURS_START,
+                        DEFAULT_QUIET_HOURS_END,
+                        DEFAULT_QUIET_HOURS_VOLUME_PERCENT
                 )
         );
     }
@@ -204,6 +217,7 @@ public class DeviceInternalService {
         heartbeat.setRssi(request.rssi());
         heartbeat.setDeviceStatus(request.deviceStatus().trim());
         heartbeat.setFirmwareVersion(request.firmwareVersion());
+        heartbeat.setHardwareVersion(request.hardwareVersion());
         heartbeat.setRecordedAt(OffsetDateTime.now(UTC));
 
         DeviceHeartbeat saved = heartbeatRepository.save(heartbeat);
@@ -222,6 +236,7 @@ public class DeviceInternalService {
         device.setLastKnownFreeHeap(saved.getFreeHeap());
         device.setLastKnownRssi(saved.getRssi());
         device.setLastKnownFirmwareVersion(saved.getFirmwareVersion());
+        device.setLastKnownHardwareVersion(saved.getHardwareVersion());
         deviceRepository.save(device);
 
         return toHeartbeatResponse(saved);
@@ -319,6 +334,16 @@ public class DeviceInternalService {
         );
     }
 
+    private RuntimeConfigResponse.AlarmSettings toAlarmSettings(Device device) {
+        return new RuntimeConfigResponse.AlarmSettings(
+                safeInteger(device.getAlarmVolumePercent(), DEFAULT_ALARM_VOLUME_PERCENT),
+                device.getQuietHoursEnabled() != null ? device.getQuietHoursEnabled() : DEFAULT_QUIET_HOURS_ENABLED,
+                defaultString(device.getQuietHoursStart(), DEFAULT_QUIET_HOURS_START),
+                defaultString(device.getQuietHoursEnd(), DEFAULT_QUIET_HOURS_END),
+                safeInteger(device.getQuietHoursVolumePercent(), DEFAULT_QUIET_HOURS_VOLUME_PERCENT)
+        );
+    }
+
     private EnvironmentRiskStatus calculateRisk(Double temperature, Double humidity) {
         if (temperature >= TEMPERATURE_CRITICAL || humidity >= HUMIDITY_CRITICAL) {
             return EnvironmentRiskStatus.CRITICAL;
@@ -389,6 +414,10 @@ public class DeviceInternalService {
 
     private String defaultString(String value) {
         return value == null ? "" : value;
+    }
+
+    private String defaultString(String value, String defaultValue) {
+        return value == null || value.isBlank() ? defaultValue : value;
     }
 
     private Device authorize(Long deviceId, String deviceKey, String serviceKey) {

@@ -9,7 +9,8 @@ public record RuntimeConfigResponse(
         String timezone,
         List<RuntimeContainer> containers,
         List<RuntimeSchedule> schedules,
-        EnvironmentThresholds environmentThresholds
+        EnvironmentThresholds environmentThresholds,
+        AlarmSettings alarmSettings
 ) {
     public record RuntimeContainer(
             Integer containerNumber,
@@ -35,6 +36,15 @@ public record RuntimeConfigResponse(
             Integer temperatureCritical,
             Integer humidityWarning,
             Integer humidityCritical
+    ) {
+    }
+
+    public record AlarmSettings(
+            Integer volumePercent,
+            Boolean quietHoursEnabled,
+            String quietHoursStart,
+            String quietHoursEnd,
+            Integer quietHoursVolumePercent
     ) {
     }
 }
