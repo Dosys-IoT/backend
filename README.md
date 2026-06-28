@@ -24,6 +24,22 @@ Backend REST API Spring Boot 3 y Java 21.
 - Maven 3.9+ (opcional si usas wrapper)
 - PostgreSQL (compatible con Supabase)
 
+## Configuración de base de datos
+En desarrollo local, la aplicación puede arrancar con H2 si no se definen variables de entorno.
+Eso solo sirve para pruebas locales.
+
+En Cloud Run, `dosys-backend` debe usar PostgreSQL/Supabase real mediante estas variables:
+- `SPRING_DATASOURCE_URL`
+- `SPRING_DATASOURCE_USERNAME`
+- `SPRING_DATASOURCE_PASSWORD`
+
+URL esperada para Supabase:
+```text
+jdbc:postgresql://aws-1-us-east-2.pooler.supabase.com:5432/postgres?sslmode=require
+```
+
+La contraseña no debe commitearse. En Cloud Run debe llegar desde Secret Manager.
+
 ## Swagger
 - UI: `http://localhost:8080/swagger-ui.html`
 - OpenAPI: `http://localhost:8080/v3/api-docs`
@@ -115,6 +131,7 @@ curl.exe -X POST "http://localhost:8080/api/v1/device/internal/1/stock-events" `
 ## Advertencia
 - No commitear secretos ni claves reales.
 - Usar variables de entorno para `EDGE_SERVICE_KEY`, JWT y credenciales de base de datos.
+- No asumir que H2 representa la base real en despliegue; en producción siempre debe existir la configuración de PostgreSQL/Supabase.
 
 ## Tests
 - `mvnw.cmd test` (Windows)
