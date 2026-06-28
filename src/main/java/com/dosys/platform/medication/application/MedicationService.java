@@ -113,6 +113,21 @@ public class MedicationService {
         );
     }
 
+    @Transactional
+    public LinkPhysicalDeviceResponse unlinkPhysicalDevice(String userEmail, Long deviceId) {
+        Device device = getOwnedDevice(userEmail, deviceId);
+        device.setHardwareDeviceId(null);
+        device.setLastKnownStatus("OFFLINE");
+        deviceRepository.save(device);
+        return new LinkPhysicalDeviceResponse(
+                String.valueOf(device.getId()),
+                device.getName(),
+                Boolean.FALSE,
+                "UNLINKED",
+                null
+        );
+    }
+
     @Transactional(readOnly = true)
     public List<DeviceResponse> getDevices(String userEmail) {
         User owner = getUserByEmail(userEmail);

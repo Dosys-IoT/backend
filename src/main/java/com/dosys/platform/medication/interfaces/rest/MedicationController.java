@@ -60,6 +60,12 @@ public class MedicationController {
         return medicationService.linkPhysicalDevice(principal.getName(), request);
     }
 
+    @PostMapping("/devices/{deviceId}/unlink")
+    @Operation(summary = "Unlink a physical device from the authenticated user")
+    public LinkPhysicalDeviceResponse unlinkPhysicalDevice(Principal principal, @PathVariable Long deviceId) {
+        return medicationService.unlinkPhysicalDevice(principal.getName(), deviceId);
+    }
+
     @GetMapping("/devices")
     @Operation(summary = "List devices for authenticated user")
     public List<DeviceResponse> getDevices(Principal principal) {

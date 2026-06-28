@@ -27,6 +27,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.hamcrest.Matchers.nullValue;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -154,6 +155,22 @@ class MedicationIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.deviceId").value("1"))
                 .andExpect(jsonPath("$.linked").value(true));
+    }
+
+    @Test
+    void unlinkDeviceClearsHardwareAssociationWithoutDeletingData() throws Exception {
+        linkPhysicalDevice();
+
+        mockMvc.perform(post("/api/v1/medication/devices/{deviceId}/unlink", 1L)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.linked").value(false))
+                .andExpect(jsonPath("$.hardwareDeviceId").value(nullValue()));
+
+        mockMvc.perform(get("/api/v1/medication/devices")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].hardwareDeviceId").value(nullValue()));
     }
 
     @Test

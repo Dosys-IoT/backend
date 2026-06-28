@@ -14,6 +14,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -203,6 +204,25 @@ class AccessIntegrationTest {
                         .header("Authorization", "Bearer malformed.token.value"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+    }
+
+    @Test
+    void updateMeChangesProfileNames() throws Exception {
+        registerDefaultUser();
+        String token = loginAndGetToken();
+
+        mockMvc.perform(put("/api/v1/access/me")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "firstName": "Ana Maria",
+                                  "lastName": "Lopez Ruiz"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.firstName").value("Ana Maria"))
+                .andExpect(jsonPath("$.lastName").value("Lopez Ruiz"));
     }
 
     private void registerDefaultUser() throws Exception {

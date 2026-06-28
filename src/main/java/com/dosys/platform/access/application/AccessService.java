@@ -5,7 +5,9 @@ import com.dosys.platform.access.domain.User;
 import com.dosys.platform.access.infrastructure.UserRepository;
 import com.dosys.platform.access.interfaces.rest.dto.request.LoginRequest;
 import com.dosys.platform.access.interfaces.rest.dto.request.RegisterRequest;
+import com.dosys.platform.access.interfaces.rest.dto.request.UpdateProfileRequest;
 import com.dosys.platform.access.interfaces.rest.dto.response.LoginResponse;
+import com.dosys.platform.access.interfaces.rest.dto.response.ProfileResponse;
 import com.dosys.platform.access.interfaces.rest.dto.response.UserResponse;
 import com.dosys.platform.shared.exception.DuplicateResourceException;
 import com.dosys.platform.shared.security.JwtService;
@@ -76,8 +78,30 @@ public class AccessService {
         return toUserResponse(user);
     }
 
+    @Transactional
+    public ProfileResponse updateAuthenticatedUser(String email, UpdateProfileRequest request) {
+        User user = userRepository.findByEmailIgnoreCase(normalizeEmail(email))
+                .orElseThrow(() -> new UsernameNotFoundException("User not found"));
+        user.setFirstName(request.firstName().trim());
+        user.setLastName(request.lastName().trim());
+        User saved = userRepository.save(user);
+        return toProfileResponse(saved);
+    }
+
     private UserResponse toUserResponse(User user) {
         return new UserResponse(
+                user.getId(),
+                user.getFirstName(),
+                user.getLastName(),
+                user.getEmail(),
+                user.getRole(),
+                user.getCreatedAt(),
+                user.getUpdatedAt()
+        );
+    }
+
+    private ProfileResponse toProfileResponse(User user) {
+        return new ProfileResponse(
                 user.getId(),
                 user.getFirstName(),
                 user.getLastName(),
