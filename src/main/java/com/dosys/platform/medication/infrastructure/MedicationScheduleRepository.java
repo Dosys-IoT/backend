@@ -8,5 +8,6 @@ import java.util.Optional;
 
 public interface MedicationScheduleRepository extends JpaRepository<MedicationSchedule, Long> {
     List<MedicationSchedule> findByDeviceIdOrderByTimeAsc(Long deviceId);
+    List<MedicationSchedule> findByDeviceIdAndContainerContainerNumberAndIsActiveTrueOrderByTimeAsc(Long deviceId, Integer containerNumber);
     Optional<MedicationSchedule> findByIdAndDeviceId(Long id, Long deviceId);
 }

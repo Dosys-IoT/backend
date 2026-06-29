@@ -394,6 +394,63 @@ class MedicationIntegrationTest {
     }
 
     @Test
+    void listActiveSchedulesForContainer() throws Exception {
+        long deviceId = createDevice();
+        enableContainer(deviceId, 1);
+        enableContainer(deviceId, 2);
+
+        mockMvc.perform(post("/api/v1/medication/devices/{deviceId}/schedules", deviceId)
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "containerNumber":1,
+                                  "time":"20:21:00",
+                                  "daysOfWeek":["SUNDAY"],
+                                  "isActive":true
+                                }
+                                """))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(post("/api/v1/medication/devices/{deviceId}/schedules", deviceId)
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "containerNumber":2,
+                                  "time":"19:25:00",
+                                  "daysOfWeek":["MONDAY","WEDNESDAY"],
+                                  "isActive":true
+                                }
+                                """))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(post("/api/v1/medication/devices/{deviceId}/schedules", deviceId)
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "containerNumber":1,
+                                  "time":"08:00:00",
+                                  "daysOfWeek":["TUESDAY"],
+                                  "isActive":false
+                                }
+                                """))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(get("/api/v1/medication/devices/{deviceId}/containers/{containerNumber}/schedules", deviceId, 1)
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.deviceId").value(String.valueOf(deviceId)))
+                .andExpect(jsonPath("$.containerNumber").value(1))
+                .andExpect(jsonPath("$.schedules.length()").value(1))
+                .andExpect(jsonPath("$.schedules[0].containerNumber").value(1))
+                .andExpect(jsonPath("$.schedules[0].time").value("20:21:00"))
+                .andExpect(jsonPath("$.schedules[0].daysOfWeek[0]").value("SUNDAY"))
+                .andExpect(jsonPath("$.schedules[0].isActive").value(true));
+    }
+
+    @Test
     void deleteSchedule() throws Exception {
         long deviceId = createDevice();
         enableContainer(deviceId, 1);

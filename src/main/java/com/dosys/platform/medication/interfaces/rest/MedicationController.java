@@ -9,6 +9,7 @@ import com.dosys.platform.medication.interfaces.rest.dto.request.UpsertScheduleR
 import com.dosys.platform.medication.interfaces.rest.dto.response.AdherenceCalendarResponse;
 import com.dosys.platform.medication.interfaces.rest.dto.response.AlarmSettingsResponse;
 import com.dosys.platform.medication.interfaces.rest.dto.response.ContainerResponse;
+import com.dosys.platform.medication.interfaces.rest.dto.response.ContainerSchedulesResponse;
 import com.dosys.platform.medication.interfaces.rest.dto.response.DeviceResponse;
 import com.dosys.platform.medication.interfaces.rest.dto.response.DeviceStatusResponse;
 import com.dosys.platform.medication.interfaces.rest.dto.response.EdgeCredentialsResponse;
@@ -91,6 +92,14 @@ public class MedicationController {
     @Operation(summary = "List schedules for a device")
     public List<ScheduleResponse> getSchedules(Principal principal, @PathVariable Long deviceId) {
         return medicationService.getSchedules(principal.getName(), deviceId);
+    }
+
+    @GetMapping("/devices/{deviceId}/containers/{containerNumber}/schedules")
+    @Operation(summary = "List active schedules for a container")
+    public ContainerSchedulesResponse getContainerSchedules(Principal principal,
+                                                           @PathVariable Long deviceId,
+                                                           @PathVariable Integer containerNumber) {
+        return medicationService.getContainerSchedules(principal.getName(), deviceId, containerNumber);
     }
 
     @PostMapping("/devices/{deviceId}/schedules")

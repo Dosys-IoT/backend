@@ -20,6 +20,7 @@ import com.dosys.platform.medication.interfaces.rest.dto.request.UpsertScheduleR
 import com.dosys.platform.medication.interfaces.rest.dto.response.AdherenceCalendarResponse;
 import com.dosys.platform.medication.interfaces.rest.dto.response.AlarmSettingsResponse;
 import com.dosys.platform.medication.interfaces.rest.dto.response.ContainerResponse;
+import com.dosys.platform.medication.interfaces.rest.dto.response.ContainerSchedulesResponse;
 import com.dosys.platform.medication.interfaces.rest.dto.response.DeviceResponse;
 import com.dosys.platform.medication.interfaces.rest.dto.response.DeviceStatusResponse;
 import com.dosys.platform.medication.interfaces.rest.dto.response.EdgeCredentialsResponse;
@@ -176,6 +177,18 @@ public class MedicationService {
     public List<ScheduleResponse> getSchedules(String userEmail, Long deviceId) {
         Device device = getOwnedDevice(userEmail, deviceId);
         return scheduleRepository.findByDeviceIdOrderByTimeAsc(device.getId()).stream().map(this::toScheduleResponse).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public ContainerSchedulesResponse getContainerSchedules(String userEmail, Long deviceId, Integer containerNumber) {
+        validateContainerNumber(containerNumber);
+        Device device = getOwnedDevice(userEmail, deviceId);
+        List<ScheduleResponse> schedules = scheduleRepository
+                .findByDeviceIdAndContainerContainerNumberAndIsActiveTrueOrderByTimeAsc(device.getId(), containerNumber)
+                .stream()
+                .map(this::toScheduleResponse)
+                .toList();
+        return new ContainerSchedulesResponse(String.valueOf(displayDeviceId(device)), containerNumber, schedules);
     }
 
     @Transactional
